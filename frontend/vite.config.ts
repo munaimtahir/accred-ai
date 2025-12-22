@@ -16,5 +16,15 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'recharts': ['recharts'],
+          'pdf': ['jspdf', 'jspdf-autotable'],
+        },
+      },
+    },
   },
 })

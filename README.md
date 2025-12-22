@@ -1,16 +1,36 @@
 # AccrediFy - AI-Powered Compliance Platform
 
-AccrediFy is an intelligent, AI-powered compliance management platform designed to simplify and standardize laboratory licensing and MSDS compliance processes.
+<p align="center">
+  <img src="frontend/public/vite.svg" alt="AccrediFy Logo" width="64" height="64">
+</p>
+
+<p align="center">
+  <strong>Intelligent compliance management for laboratories</strong>
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#tech-stack">Tech Stack</a> •
+  <a href="#api-endpoints">API</a> •
+  <a href="#deployment">Deployment</a>
+</p>
+
+---
+
+AccrediFy is an intelligent, AI-powered compliance management platform designed to simplify and standardize laboratory licensing and MSDS compliance processes. It transforms tedious manual compliance tracking into a streamlined, automated workflow.
 
 ## Features
 
-- **Multi-Project Management**: Handle multiple accreditation processes simultaneously
-- **AI Compliance Assistant**: Chat interface for instant answers about regulations
-- **Automated Document Generation**: Create SOPs and policy documents with a single click
-- **Smart Task Categorization**: AI automatically sorts tasks into manageable categories
-- **Document-to-CSV Converter**: Convert compliance documents into importable checklists
-- **Real-Time Dashboards**: Visual overview of compliance posture
-- **Evidence Management**: Centralized document library with digital forms
+- **🗂️ Multi-Project Management**: Handle multiple accreditation processes simultaneously
+- **🤖 AI Compliance Assistant**: Chat interface powered by Google Gemini for instant answers
+- **📝 Automated Document Generation**: Create SOPs and policy documents with a single click
+- **🧠 Smart Task Categorization**: AI automatically sorts tasks into AI-manageable, AI-assisted, and manual categories
+- **🔄 Document-to-CSV Converter**: Convert compliance documents into importable checklists
+- **📊 Real-Time Dashboards**: Visual overview of compliance posture with interactive charts
+- **📁 Evidence Management**: Centralized document library with digital forms for recurring logs
+- **📋 Recurring Task Tracking**: Never miss a daily, weekly, or monthly compliance check
+- **📑 PDF Reports**: Generate audit-ready reports with AI summaries
 
 ## Tech Stack
 
@@ -34,52 +54,86 @@ AccrediFy is an intelligent, AI-powered compliance management platform designed 
 ## Quick Start
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 18+ (20 recommended)
 - Python 3.12+
 - Docker & Docker Compose (for production)
 
-### Development Setup
+### 🚀 One-Command Start (Development)
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd accredify
-   ```
+```bash
+# From the project root directory
+./scripts/start-dev.sh
+```
 
-2. **Backend Setup**
-   ```bash
-   cd backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   
-   # Create .env file
-   cp .env.example .env
-   # Edit .env and add your GEMINI_API_KEY
-   
-   # Run migrations
-   python manage.py migrate
-   
-   # Start development server
-   python manage.py runserver
-   ```
+This will:
+- Create Python virtual environment if needed
+- Install dependencies
+- Run database migrations
+- Start both backend and frontend servers
 
-3. **Frontend Setup**
-   ```bash
-   cd frontend
-   npm install
-   
-   # Create .env file (optional)
-   cp .env.example .env.local
-   
-   # Start development server
-   npm run dev
-   ```
+### Manual Development Setup
 
-4. **Access the application**
-   - Frontend: http://localhost:5173
-   - Backend API: http://localhost:8000/api
-   - Admin: http://localhost:8000/admin
+#### 1. Clone the repository
+```bash
+git clone <repository-url>
+cd accredify
+```
+
+#### 2. Backend Setup
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# Create .env file
+cp .env.example .env
+# Edit .env and add your GEMINI_API_KEY (optional - app works without it)
+
+# Run migrations
+python manage.py migrate
+
+# Seed sample data (optional)
+python manage.py seed_data
+
+# Create admin user (optional)
+python manage.py createsuperuser
+
+# Start development server
+python manage.py runserver
+```
+
+#### 3. Frontend Setup (in a new terminal)
+```bash
+cd frontend
+npm install
+
+# Start development server
+npm run dev
+```
+
+#### 4. Access the application
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:8000/api
+- **Django Admin**: http://localhost:8000/admin
+- **Health Check**: http://localhost:8000/api/health/
+
+### Sample Data
+
+The application comes with a management command to seed sample data:
+
+```bash
+cd backend
+source venv/bin/activate
+python manage.py seed_data
+```
+
+This creates a sample "ISO 15189 Laboratory Accreditation" project with 15 indicators including:
+- Quality Management indicators
+- Safety procedures
+- Equipment calibration logs
+- Personnel competency assessments
+- Documentation requirements
 
 ### Production Deployment
 
