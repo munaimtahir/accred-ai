@@ -66,9 +66,9 @@ jobs:
         working-directory: backend
         run: python manage.py check
       
-      - name: Run migrations check
+      - name: Check for missing migrations
         working-directory: backend
-        run: python manage.py migrate --check
+        run: python manage.py makemigrations --check --dry-run
       
       - name: Run tests
         working-directory: backend
