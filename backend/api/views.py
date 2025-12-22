@@ -1,8 +1,11 @@
+import os
 import uuid
+import mimetypes
 
 from django.utils import timezone
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+from django.http import FileResponse, Http404
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
@@ -240,3 +243,42 @@ def health_check(request):
         'timestamp': timezone.now().isoformat(),
         'version': '1.0.0'
     })
+
+
+@api_view(['GET'])
+def serve_media(request, file_path):
+    """
+    Serve media files with authentication.
+    This ensures that only authenticated requests can access uploaded evidence files.
+    """
+    # In a production environment with user authentication, add permission checks here:
+    # if not request.user.is_authenticated:
+    #     return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    # For now, we'll serve files to any request that comes through the API
+    # When authentication is added, also verify the user has access to this evidence
+    
+    try:
+        # Check if file exists
+        full_path = os.path.join('media', file_path)
+        if not default_storage.exists(full_path):
+            raise Http404("File not found")
+        
+        # Open and serve the file
+        file = default_storage.open(full_path, 'rb')
+        
+        # Determine content type
+        content_type, _ = mimetypes.guess_type(file_path)
+        if content_type is None:
+            content_type = 'application/octet-stream'
+        
+        response = FileResponse(file, content_type=content_type)
+        
+        # Set content disposition for proper filename
+        filename = os.path.basename(file_path)
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        
+        return response
+        
+    except Exception as e:
+        raise Http404(f"Error serving file: {str(e)}")

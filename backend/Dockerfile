@@ -27,8 +27,14 @@ RUN python manage.py collectstatic --noinput
 # Create media directory
 RUN mkdir -p /app/media
 
+# Create non-root user and adjust ownership
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+
 # Expose port
 EXPOSE 8000
+
+# Run application as non-root user
+USER appuser
 
 # Run gunicorn
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "accredify_backend.wsgi:application"]
