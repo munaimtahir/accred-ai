@@ -1,0 +1,11 @@
+section,standard,indicator,description,score,frequency
+Quality Management,QMS-001,Quality Manual Documentation,"Establish and maintain a documented quality manual",15,Annually
+Quality Management,QMS-002,Internal Audit Program,"Implement an internal audit program covering all aspects of the QMS",12,Quarterly
+Safety,SAF-001,Safety Training Records,"Maintain records of safety training for all personnel",10,Annually
+Safety,SAF-002,Chemical Spill Response SOP,"Document standard operating procedures for chemical spill response",12,One-time
+Equipment,EQP-001,Equipment Calibration Log,"Maintain calibration records for all critical equipment",15,Monthly
+Equipment,EQP-002,Temperature Monitoring Log,"Record and maintain daily temperature logs for storage units",8,Daily
+Personnel,PER-001,Staff Competency Assessment,"Conduct and document annual competency assessments",10,Annually
+Personnel,PER-002,Job Descriptions,"Maintain current job descriptions for all positions",8,One-time
+Documentation,DOC-001,Document Control Procedure,"Establish procedures for document creation and control",12,One-time
+Documentation,DOC-002,Record Retention Policy,"Define record retention periods and storage requirements",8,One-time
