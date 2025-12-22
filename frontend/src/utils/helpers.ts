@@ -1,4 +1,4 @@
-import { Indicator, ComplianceStatus, Frequency } from '../types';
+import { Indicator, ComplianceStatus } from '../types';
 
 /**
  * Calculate compliance percentage for a set of indicators

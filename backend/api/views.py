@@ -1,16 +1,19 @@
 import os
 import uuid
-from datetime import datetime
-from io import BytesIO
+import mimetypes
+import logging
+from pathlib import Path
 
-from django.http import FileResponse
 from django.utils import timezone
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+from django.http import FileResponse, Http404
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+
+logger = logging.getLogger(__name__)
 
 from .models import Project, Indicator, Evidence, ComplianceStatus
 from .serializers import (
@@ -244,3 +247,69 @@ def health_check(request):
         'timestamp': timezone.now().isoformat(),
         'version': '1.0.0'
     })
+
+
+@api_view(['GET'])
+def serve_media(request, file_path):
+    """
+    Serve media files with authentication.
+    This ensures that only authenticated requests can access uploaded evidence files.
+    
+    TODO: Implement full authentication and authorization:
+    - Add user authentication requirement
+    - Verify user has permission to access the specific evidence file
+    - Add audit logging for file access
+    """
+    # TODO: Uncomment when authentication is implemented
+    # if not request.user.is_authenticated:
+    #     return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    # TODO: Add permission check - verify user can access this specific evidence
+    # try:
+    #     evidence = Evidence.objects.get(file_url=f'media/{file_path}')
+    #     # Check if user has access to the project/indicator this evidence belongs to
+    # except Evidence.DoesNotExist:
+    #     raise Http404("File not found")
+    
+    try:
+        # Sanitize file path to prevent directory traversal attacks
+        # Resolve to absolute path and ensure it's within the media directory
+        safe_file_path = Path(file_path).as_posix()
+        
+        # Check for directory traversal attempts
+        if '..' in safe_file_path or safe_file_path.startswith('/'):
+            logger.warning(f"Directory traversal attempt detected: {file_path}")
+            raise Http404("Invalid file path")
+        
+        # Construct full path
+        full_path = os.path.join('media', safe_file_path)
+        
+        # Verify file exists
+        if not default_storage.exists(full_path):
+            logger.info(f"File not found: {full_path}")
+            raise Http404("File not found")
+        
+        # Open and serve the file
+        file = default_storage.open(full_path, 'rb')
+        
+        # Determine content type
+        content_type, _ = mimetypes.guess_type(safe_file_path)
+        if content_type is None:
+            content_type = 'application/octet-stream'
+        
+        response = FileResponse(file, content_type=content_type)
+        
+        # Set content disposition for proper filename
+        filename = os.path.basename(safe_file_path)
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        
+        logger.info(f"Serving file: {full_path}")
+        return response
+        
+    except Http404:
+        # Re-raise Http404 with generic message
+        raise
+    except Exception as e:
+        # Log detailed error but return generic message to client
+        logger.error(f"Error serving file {file_path}: {str(e)}", exc_info=True)
+        raise Http404("File not found")

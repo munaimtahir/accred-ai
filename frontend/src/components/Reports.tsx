@@ -10,7 +10,7 @@ import {
   Clock,
   AlertCircle
 } from 'lucide-react';
-import { Project, ComplianceStats, Indicator } from '../types';
+import { Project, ComplianceStats } from '../types';
 import { api } from '../services/api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';

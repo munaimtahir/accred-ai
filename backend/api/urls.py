@@ -21,4 +21,7 @@ urlpatterns = [
     
     # Health check
     path('health/', views.health_check, name='health-check'),
+    
+    # Secure media serving
+    path('media/<path:file_path>', views.serve_media, name='serve-media'),
 ]
