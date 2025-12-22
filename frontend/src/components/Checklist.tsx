@@ -5,7 +5,6 @@ import {
   Plus, 
   Check, 
   X, 
-  AlertTriangle,
   FileText,
   Bot,
   Filter,

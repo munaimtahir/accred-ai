@@ -3,7 +3,7 @@ Management command to seed the database with sample data for development/demo pu
 Usage: python manage.py seed_data
 """
 from django.core.management.base import BaseCommand
-from api.models import Project, Indicator, Evidence, ComplianceStatus, Frequency
+from api.models import Project, Indicator, ComplianceStatus, Frequency
 
 
 class Command(BaseCommand):

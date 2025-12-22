@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Project, Indicator, Evidence, View, ComplianceStats, CreateProjectData, CreateEvidenceData } from './types';
+import { Project, Indicator, View, ComplianceStats, CreateProjectData, CreateEvidenceData } from './types';
 import { api } from './services/api';
 import Sidebar from './components/Sidebar';
 import ProjectHub from './components/ProjectHub';
