@@ -69,14 +69,23 @@ export const api = {
   },
 
   async createProject(data: CreateProjectData): Promise<Project> {
+    // #region agent log
+    fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:enter',data:{apiBase:API_BASE_URL,hasCrypto:typeof (globalThis as any).crypto !== 'undefined',cryptoType:typeof (globalThis as any).crypto,hasRandomUUID:typeof (globalThis as any).crypto?.randomUUID === 'function',randomUUIDType:typeof (globalThis as any).crypto?.randomUUID,isSecureContext:(globalThis as any).isSecureContext,protocol:(globalThis as any).location?.protocol,userAgent:(globalThis as any).navigator?.userAgent},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
     try {
       return await apiRequest<Project>('/projects/', {
         method: 'POST',
         body: JSON.stringify(data),
       });
     } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:api_failed_using_local',data:{errName:(error as any)?.name,errMsg:String((error as any)?.message||error)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2'})}).catch(()=>{});
+      // #endregion
       console.warn('API unavailable, using local storage:', error);
       const localData = getLocalData();
+      // #region agent log
+      fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:before_uuid',data:{hasCrypto:typeof (globalThis as any).crypto !== 'undefined',hasRandomUUID:typeof (globalThis as any).crypto?.randomUUID === 'function',randomUUIDType:typeof (globalThis as any).crypto?.randomUUID},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
       const newProject: Project = {
         id: crypto.randomUUID(),
         name: data.name,
@@ -94,6 +103,9 @@ export const api = {
         })) as Indicator[],
         createdAt: new Date().toISOString(),
       };
+      // #region agent log
+      fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:local_created',data:{projectIdType:typeof (newProject as any)?.id,indicatorsCount:Array.isArray((newProject as any)?.indicators)?(newProject as any).indicators.length:null},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3'})}).catch(()=>{});
+      // #endregion
       localData.projects.push(newProject);
       setLocalData(localData);
       return newProject;
