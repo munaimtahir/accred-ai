@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { 
   Bot, 
   Sparkles, 
@@ -173,7 +173,7 @@ export default function AIAnalysis({
       };
       
       Object.entries(result).forEach(([freq, ids]) => {
-        ids.forEach(id => {
+        ids.forEach((id: string) => {
           const indicator = indicators.find(i => i.id === id);
           if (indicator && (!indicator.frequency || indicator.frequency !== frequencyMap[freq])) {
             onUpdateIndicator(id, { frequency: frequencyMap[freq] });
@@ -342,7 +342,7 @@ interface IndicatorExplanationsSectionProps {
   isAnalyzing: boolean;
   onAnalyze: () => void;
   onSave: (indicatorId: string, explanation: IndicatorExplanation) => void;
-  getEvidenceTypeIcon: (type: EvidenceType) => JSX.Element;
+  getEvidenceTypeIcon: (type: EvidenceType) => React.ReactElement;
 }
 
 function IndicatorExplanationsSection({
