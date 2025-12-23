@@ -1,9 +1,9 @@
-import os
 import uuid
 import mimetypes
 import logging
 from pathlib import Path
 
+from django.conf import settings
 from django.utils import timezone
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
@@ -122,7 +122,11 @@ class EvidenceViewSet(viewsets.ModelViewSet):
             saved_path = default_storage.save(file_path, ContentFile(file.read()))
             
             data['file_name'] = file_name
-            data['file_url'] = saved_path
+            # Expose a URL path the frontend can open. Nginx proxies /media/* to /api/media/*.
+            media_url = getattr(settings, 'MEDIA_URL', '/media/')
+            if not media_url.endswith('/'):
+                media_url += '/'
+            data['file_url'] = f"{media_url}{saved_path}"
             data['file_size'] = f"{file_size / 1024 / 1024:.2f} MB" if file_size > 1024 * 1024 else f"{file_size / 1024:.2f} KB"
         
         serializer = self.get_serializer(data=data)
@@ -282,7 +286,8 @@ def serve_media(request, file_path):
             raise Http404("Invalid file path")
         
         # Construct full path
-        full_path = os.path.join('media', safe_file_path)
+        # `default_storage` is already rooted at MEDIA_ROOT, so do NOT prefix with "media/".
+        full_path = safe_file_path
         
         # Verify file exists
         if not default_storage.exists(full_path):
