@@ -305,7 +305,7 @@ def serve_media(request, file_path):
         response = FileResponse(file, content_type=content_type)
         
         # Set content disposition for proper filename
-        filename = os.path.basename(safe_file_path)
+        filename = Path(safe_file_path).name
         response['Content-Disposition'] = f'inline; filename="{filename}"'
         
         logger.info(f"Serving file: {full_path}")
