@@ -22,7 +22,8 @@ from .serializers import (
     AnalyzeChecklistInputSerializer, AnalyzeCategorizationInputSerializer,
     AskAssistantInputSerializer, ReportSummaryInputSerializer,
     ConvertDocumentInputSerializer, ComplianceGuideInputSerializer,
-    AnalyzeTasksInputSerializer
+    AnalyzeTasksInputSerializer, AnalyzeIndicatorExplanationsInputSerializer,
+    AnalyzeFrequencyGroupingInputSerializer
 )
 from . import ai_services
 
@@ -240,6 +241,36 @@ def analyze_tasks(request):
     
     indicators = serializer.validated_data['indicators']
     result = ai_services.analyze_tasks(indicators)
+    return Response(result)
+
+
+@api_view(['POST'])
+def analyze_indicator_explanations(request):
+    """Analyze indicators and provide explanations with required evidence"""
+    serializer = AnalyzeIndicatorExplanationsInputSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {'error': 'Invalid input', 'details': serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    indicators = serializer.validated_data['indicators']
+    result = ai_services.analyze_indicator_explanations(indicators)
+    return Response(result)
+
+
+@api_view(['POST'])
+def analyze_frequency_grouping(request):
+    """Group indicators by compliance frequency"""
+    serializer = AnalyzeFrequencyGroupingInputSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {'error': 'Invalid input', 'details': serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    indicators = serializer.validated_data['indicators']
+    result = ai_services.analyze_frequency_grouping(indicators)
     return Response(result)
 
 

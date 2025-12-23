@@ -162,3 +162,18 @@ export interface FrequencyStats {
   name: Frequency;
   count: number;
 }
+
+export interface IndicatorExplanation {
+  explanation: string;
+  requiredEvidence: EvidenceType[];
+  evidenceDescription: string;
+}
+
+export interface FrequencyGroupingResult {
+  one_time: string[];
+  daily: string[];
+  weekly: string[];
+  monthly: string[];
+  quarterly: string[];
+  annually: string[];
+}

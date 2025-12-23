@@ -176,3 +176,11 @@ class ComplianceGuideInputSerializer(serializers.Serializer):
 
 class AnalyzeTasksInputSerializer(serializers.Serializer):
     indicators = serializers.ListField(child=serializers.DictField())
+
+
+class AnalyzeIndicatorExplanationsInputSerializer(serializers.Serializer):
+    indicators = serializers.ListField(child=serializers.DictField())
+
+
+class AnalyzeFrequencyGroupingInputSerializer(serializers.Serializer):
+    indicators = serializers.ListField(child=serializers.DictField())

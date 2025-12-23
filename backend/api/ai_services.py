@@ -422,3 +422,217 @@ Only return valid JSON."""
     except Exception as e:
         logger.error(f"Error in analyze_tasks: {e}")
         return default_suggestions
+
+
+def analyze_indicator_explanations(indicators: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """
+    Analyze indicators and provide explanations along with required compliance evidence.
+    
+    Args:
+        indicators: List of indicator data to analyze
+        
+    Returns:
+        Dictionary mapping indicator IDs to explanation objects containing:
+        - explanation: Text explaining the indicator
+        - requiredEvidence: Array of evidence types needed
+        - evidenceDescription: Detailed description of what evidence is required
+    """
+    model = get_pro_model()
+    
+    result = {}
+    
+    # Default explanations if AI is not available
+    if not model:
+        for ind in indicators:
+            ind_id = str(ind.get('id', ''))
+            result[ind_id] = {
+                'explanation': ind.get('description', '') or f"Compliance requirement: {ind.get('indicator', 'N/A')}",
+                'requiredEvidence': ['document'],
+                'evidenceDescription': 'Documentation required to demonstrate compliance with this requirement.'
+            }
+        return result
+    
+    try:
+        prompt = f"""You are a compliance expert specializing in laboratory accreditation and MSDS compliance. 
+Analyze these compliance indicators and provide detailed explanations and evidence requirements.
+
+For each indicator, provide:
+1. A clear, comprehensive explanation of what the indicator means and why it's important
+2. The types of evidence required (document, image, certificate, note, link)
+3. A detailed description of what specific evidence is needed to demonstrate compliance
+
+Indicators to analyze:
+{json.dumps(indicators, indent=2)}
+
+Return a JSON object where keys are indicator IDs (as strings) and values are objects with:
+{{
+  "explanation": "Clear explanation of what this indicator means and its importance",
+  "requiredEvidence": ["document", "certificate"],  // Array of evidence types
+  "evidenceDescription": "Detailed description of what evidence is needed"
+}}
+
+Evidence types available: document, image, certificate, note, link
+
+Only return valid JSON, no markdown formatting."""
+
+        response = model.generate_content(prompt)
+        result_text = response.text.strip()
+        
+        # Clean up potential markdown formatting
+        if result_text.startswith('```'):
+            result_text = result_text.split('\n', 1)[1]
+            result_text = result_text.rsplit('```', 1)[0]
+        
+        parsed_result = json.loads(result_text)
+        
+        # Ensure all indicator IDs are included (handle cases where AI might miss some)
+        for ind in indicators:
+            ind_id = str(ind.get('id', ''))
+            if ind_id not in parsed_result:
+                parsed_result[ind_id] = {
+                    'explanation': ind.get('description', '') or f"Compliance requirement: {ind.get('indicator', 'N/A')}",
+                    'requiredEvidence': ['document'],
+                    'evidenceDescription': 'Documentation required to demonstrate compliance with this requirement.'
+                }
+        
+        return parsed_result
+    except Exception as e:
+        logger.error(f"Error in analyze_indicator_explanations: {e}")
+        # Return default explanations on error
+        for ind in indicators:
+            ind_id = str(ind.get('id', ''))
+            result[ind_id] = {
+                'explanation': ind.get('description', '') or f"Compliance requirement: {ind.get('indicator', 'N/A')}",
+                'requiredEvidence': ['document'],
+                'evidenceDescription': 'Documentation required to demonstrate compliance with this requirement.'
+            }
+        return result
+
+
+def analyze_frequency_grouping(indicators: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+    """
+    Analyze indicators and group them by compliance frequency.
+    
+    Args:
+        indicators: List of indicators to analyze
+        
+    Returns:
+        Dictionary with frequency groups containing arrays of indicator IDs:
+        - one_time: Indicators requiring one-time compliance
+        - daily: Indicators requiring daily logs/checks
+        - weekly: Indicators requiring weekly logs/checks
+        - monthly: Indicators requiring monthly logs/checks
+        - quarterly: Indicators requiring quarterly logs/checks
+        - annually: Indicators requiring annual logs/checks
+    """
+    model = get_flash_model()
+    
+    result = {
+        'one_time': [],
+        'daily': [],
+        'weekly': [],
+        'monthly': [],
+        'quarterly': [],
+        'annually': []
+    }
+    
+    if not model:
+        # Default grouping based on existing frequency field or keywords
+        for ind in indicators:
+            ind_id = str(ind.get('id', ''))
+            frequency = ind.get('frequency', '').lower() if ind.get('frequency') else ''
+            indicator_text = (ind.get('indicator', '') + ' ' + ind.get('description', '')).lower()
+            
+            if frequency == 'one-time' or 'one time' in frequency:
+                result['one_time'].append(ind_id)
+            elif frequency == 'daily' or 'daily' in indicator_text:
+                result['daily'].append(ind_id)
+            elif frequency == 'weekly' or 'weekly' in indicator_text:
+                result['weekly'].append(ind_id)
+            elif frequency == 'monthly' or 'monthly' in indicator_text:
+                result['monthly'].append(ind_id)
+            elif frequency == 'quarterly' or 'quarterly' in indicator_text:
+                result['quarterly'].append(ind_id)
+            elif frequency == 'annually' or 'annual' in frequency or 'annually' in indicator_text:
+                result['annually'].append(ind_id)
+            else:
+                # Default to one-time if unclear
+                result['one_time'].append(ind_id)
+        return result
+    
+    try:
+        prompt = f"""You are a compliance frequency analyst. Analyze these compliance indicators and categorize them by their compliance frequency.
+
+Compliance frequencies:
+- One-time: Requirements that need to be completed once (e.g., initial setup, one-time documentation)
+- Daily: Requirements that need daily logs, checks, or records (e.g., daily temperature logs, daily safety checks)
+- Weekly: Requirements that need weekly logs or checks (e.g., weekly maintenance logs, weekly inspections)
+- Monthly: Requirements that need monthly logs or checks (e.g., monthly calibration, monthly reports)
+- Quarterly: Requirements that need quarterly logs or checks (e.g., quarterly audits, quarterly reviews)
+- Annually: Requirements that need annual logs or checks (e.g., annual certifications, yearly renewals)
+
+Indicators:
+{json.dumps(indicators, indent=2)}
+
+For each indicator, determine its compliance frequency based on:
+1. The indicator text and description
+2. The nature of the requirement
+3. Industry best practices for similar compliance requirements
+
+Return a JSON object with six arrays containing indicator IDs:
+{{
+  "one_time": ["id1", "id2", ...],
+  "daily": ["id3", "id4", ...],
+  "weekly": ["id5", "id6", ...],
+  "monthly": ["id7", "id8", ...],
+  "quarterly": ["id9", "id10", ...],
+  "annually": ["id11", "id12", ...]
+}}
+
+Only return valid JSON, no markdown formatting."""
+
+        response = model.generate_content(prompt)
+        result_text = response.text.strip()
+        
+        if result_text.startswith('```'):
+            result_text = result_text.split('\n', 1)[1]
+            result_text = result_text.rsplit('```', 1)[0]
+        
+        parsed_result = json.loads(result_text)
+        
+        # Ensure all indicator IDs are included
+        all_ids = {str(ind.get('id', '')) for ind in indicators}
+        grouped_ids = set()
+        for group in parsed_result.values():
+            grouped_ids.update(group)
+        
+        # Add any missing indicators to one_time as default
+        missing_ids = all_ids - grouped_ids
+        if missing_ids:
+            if 'one_time' not in parsed_result:
+                parsed_result['one_time'] = []
+            parsed_result['one_time'].extend(list(missing_ids))
+        
+        return parsed_result
+    except Exception as e:
+        logger.error(f"Error in analyze_frequency_grouping: {e}")
+        # Return default grouping on error
+        for ind in indicators:
+            ind_id = str(ind.get('id', ''))
+            frequency = ind.get('frequency', '').lower() if ind.get('frequency') else ''
+            
+            if frequency == 'one-time' or 'one time' in frequency:
+                result['one_time'].append(ind_id)
+            elif frequency == 'daily':
+                result['daily'].append(ind_id)
+            elif frequency == 'weekly':
+                result['weekly'].append(ind_id)
+            elif frequency == 'monthly':
+                result['monthly'].append(ind_id)
+            elif frequency == 'quarterly':
+                result['quarterly'].append(ind_id)
+            elif frequency == 'annually' or 'annual' in frequency:
+                result['annually'].append(ind_id)
+            else:
+                result['one_time'].append(ind_id)
+        return result

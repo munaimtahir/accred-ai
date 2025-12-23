@@ -5,7 +5,9 @@ import {
   CreateProjectData, 
   CreateEvidenceData,
   CategorizationResult,
-  TaskSuggestion
+  TaskSuggestion,
+  IndicatorExplanation,
+  FrequencyGroupingResult
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -368,6 +370,68 @@ export const api = {
           result.ai_assisted.push(ind.id);
         } else {
           result.manual.push(ind.id);
+        }
+      }
+      
+      return result;
+    }
+  },
+
+  async analyzeIndicatorExplanations(indicators: Indicator[]): Promise<Record<string, IndicatorExplanation>> {
+    try {
+      return await apiRequest<Record<string, IndicatorExplanation>>('/analyze-indicator-explanations/', {
+        method: 'POST',
+        body: JSON.stringify({ indicators }),
+      });
+    } catch (error) {
+      console.warn('AI service unavailable:', error);
+      // Default explanations
+      const result: Record<string, IndicatorExplanation> = {};
+      for (const ind of indicators) {
+        result[ind.id] = {
+          explanation: ind.description || `Compliance requirement: ${ind.indicator}`,
+          requiredEvidence: ['document'],
+          evidenceDescription: 'Documentation required to demonstrate compliance with this requirement.',
+        };
+      }
+      return result;
+    }
+  },
+
+  async analyzeFrequencyGrouping(indicators: Indicator[]): Promise<FrequencyGroupingResult> {
+    try {
+      return await apiRequest<FrequencyGroupingResult>('/analyze-frequency-grouping/', {
+        method: 'POST',
+        body: JSON.stringify({ indicators }),
+      });
+    } catch (error) {
+      console.warn('AI service unavailable:', error);
+      // Default grouping based on existing frequency
+      const result: FrequencyGroupingResult = {
+        one_time: [],
+        daily: [],
+        weekly: [],
+        monthly: [],
+        quarterly: [],
+        annually: [],
+      };
+      
+      for (const ind of indicators) {
+        const freq = ind.frequency?.toLowerCase() || 'one-time';
+        if (freq === 'one-time') {
+          result.one_time.push(ind.id);
+        } else if (freq === 'daily') {
+          result.daily.push(ind.id);
+        } else if (freq === 'weekly') {
+          result.weekly.push(ind.id);
+        } else if (freq === 'monthly') {
+          result.monthly.push(ind.id);
+        } else if (freq === 'quarterly') {
+          result.quarterly.push(ind.id);
+        } else if (freq === 'annually') {
+          result.annually.push(ind.id);
+        } else {
+          result.one_time.push(ind.id);
         }
       }
       
