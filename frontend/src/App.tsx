@@ -103,6 +103,9 @@ function App() {
     setIsLoading(true);
     try {
       // #region agent log
+      fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({location:'frontend/src/App.tsx:handleSaveProject',message:'handleSaveProject:enter:nocors',data:{nameLen:data?.name?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'Hlog'})}).catch(()=>{});
+      // #endregion
+      // #region agent log
       fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/App.tsx:handleSaveProject',message:'handleSaveProject:enter',data:{nameLen:data?.name?.length,descLen:data?.description?.length,indicatorsCount:Array.isArray((data as any)?.indicators)?(data as any).indicators.length:null},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H0'})}).catch(()=>{});
       // #endregion
       const newProject = await api.createProject(data);

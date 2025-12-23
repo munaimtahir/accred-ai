@@ -7,8 +7,56 @@ import {
   CategorizationResult,
   TaskSuggestion
 } from '../types';
+import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
+function debugLog(payload: {
+  location: string;
+  message: string;
+  data?: Record<string, unknown>;
+  hypothesisId: string;
+  runId: string;
+}) {
+  const entry = {
+    ...payload,
+    timestamp: Date.now(),
+    sessionId: 'debug-session',
+  };
+
+  // #region agent log
+  fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36', {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(entry),
+  }).catch(() => {});
+  // #endregion
+
+  // Fallback evidence channel when the ingest server is unreachable (e.g., app running in Docker)
+  try {
+    const key = 'accredify_debug';
+    const existing = localStorage.getItem(key);
+    const arr: unknown[] = existing ? JSON.parse(existing) : [];
+    arr.push(entry);
+    // cap growth
+    if (arr.length > 200) arr.splice(0, arr.length - 200);
+    localStorage.setItem(key, JSON.stringify(arr));
+  } catch {
+    // ignore
+  }
+}
+
+function generateId(): string {
+  const c: any = (globalThis as any).crypto;
+  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
+  try {
+    return uuidv4();
+  } catch {
+    // last-resort fallback (should be rare)
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+}
 
 // Helper function for API requests
 async function apiRequest<T>(
@@ -26,13 +74,30 @@ async function apiRequest<T>(
     delete (defaultHeaders as Record<string, string>)['Content-Type'];
   }
   
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...defaultHeaders,
-      ...options.headers,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options.headers,
+      },
+    });
+  } catch (err) {
+    debugLog({
+      location: 'frontend/src/services/api.ts:apiRequest',
+      message: 'apiRequest:fetch_failed',
+      data: {
+        url,
+        method: (options as any)?.method,
+        isSecureContext: (globalThis as any).isSecureContext,
+        protocol: (globalThis as any).location?.protocol,
+      },
+      hypothesisId: 'H2',
+      runId: 'pre-fix',
+    });
+    throw err;
+  }
   
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Request failed' }));
@@ -70,6 +135,9 @@ export const api = {
 
   async createProject(data: CreateProjectData): Promise<Project> {
     // #region agent log
+    fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:enter:nocors',data:{hasCrypto:typeof (globalThis as any).crypto !== 'undefined',hasRandomUUID:typeof (globalThis as any).crypto?.randomUUID === 'function',protocol:(globalThis as any).location?.protocol},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'Hlog'})}).catch(()=>{});
+    // #endregion
+    // #region agent log
     fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:enter',data:{apiBase:API_BASE_URL,hasCrypto:typeof (globalThis as any).crypto !== 'undefined',cryptoType:typeof (globalThis as any).crypto,hasRandomUUID:typeof (globalThis as any).crypto?.randomUUID === 'function',randomUUIDType:typeof (globalThis as any).crypto?.randomUUID,isSecureContext:(globalThis as any).isSecureContext,protocol:(globalThis as any).location?.protocol,userAgent:(globalThis as any).navigator?.userAgent},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
     // #endregion
     try {
@@ -86,12 +154,24 @@ export const api = {
       // #region agent log
       fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:before_uuid',data:{hasCrypto:typeof (globalThis as any).crypto !== 'undefined',hasRandomUUID:typeof (globalThis as any).crypto?.randomUUID === 'function',randomUUIDType:typeof (globalThis as any).crypto?.randomUUID},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
       // #endregion
+      debugLog({
+        location: 'frontend/src/services/api.ts:createProject',
+        message: 'createProject:offline_mode_id_strategy',
+        data: {
+          apiBase: API_BASE_URL,
+          hasCrypto: typeof (globalThis as any).crypto !== 'undefined',
+          hasRandomUUID: typeof (globalThis as any).crypto?.randomUUID === 'function',
+          willUse: typeof (globalThis as any).crypto?.randomUUID === 'function' ? 'crypto.randomUUID' : 'uuid.v4',
+        },
+        hypothesisId: 'H1',
+        runId: 'pre-fix',
+      });
       const newProject: Project = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: data.name,
         description: data.description,
         indicators: (data.indicators || []).map((ind, index) => ({
-          id: crypto.randomUUID(),
+          id: generateId(),
           section: ind.section || 'General',
           standard: ind.standard || `STD-${index + 1}`,
           indicator: ind.indicator || 'New Indicator',
@@ -208,7 +288,7 @@ export const api = {
       console.warn('API unavailable, using local storage:', error);
       const localData = getLocalData();
       const newEvidence: Evidence = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         dateUploaded: new Date().toISOString(),
         type: data.type,
         fileName: data.fileName,
