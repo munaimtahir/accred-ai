@@ -119,10 +119,10 @@ Test the app under a subpath as it would be deployed via Keystone:
 Test critical API endpoints work correctly:
 
 ```bash
-# Root mode
+# Root mode - Direct backend testing (backend not behind Traefik)
 curl http://localhost:8000/api/projects/
 
-# Keystone mode (with FORCE_SCRIPT_NAME set)
+# Keystone mode - Through Traefik reverse proxy (production setup)
 curl http://localhost/accred-ai/api/projects/
 ```
 
