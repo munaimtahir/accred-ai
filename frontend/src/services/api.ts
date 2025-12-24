@@ -11,8 +11,23 @@ import {
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// Support deployment under a subpath for Keystone
+// When deployed under /{APP_SLUG}/, the frontend is accessed at http://VPS_IP/{APP_SLUG}/
+// API calls need to be relative to the current base path
+const BASE_PATH = import.meta.env.VITE_BASE_PATH || '';
+// Construct API base URL: 
+// - If BASE_PATH is empty or '/', result is '/api'
+// - If BASE_PATH is '/accred-ai', result is '/accred-ai/api'
+const API_BASE_URL = import.meta.env.VITE_API_URL || (() => {
+  if (!BASE_PATH || BASE_PATH === '/') {
+    return '/api';
+  }
+  return `${BASE_PATH}/api`;
+})();
 
+// Note: debugLog below uses hardcoded localhost:7254 for internal development diagnostics only.
+// These calls are intentionally NOT routed through the app's base path as they're for 
+// developer tooling/debugging, not production features. They fail silently if unavailable.
 function debugLog(payload: {
   location: string;
   message: string;

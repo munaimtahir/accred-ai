@@ -137,6 +137,8 @@ This creates a sample "ISO 15189 Laboratory Accreditation" project with 15 indic
 
 ### Production Deployment
 
+#### Standard Deployment (Root Path)
+
 1. **Configure environment**
    ```bash
    cp .env.example .env
@@ -159,6 +161,38 @@ This creates a sample "ISO 15189 Laboratory Accreditation" project with 15 indic
 4. **Access the application**
    - Application: http://localhost
    - Admin: http://localhost/admin
+
+#### Keystone Deployment (Subpath Routing)
+
+AccrediFy is fully compatible with Keystone's Traefik-based path routing. See detailed guides:
+
+- **Quick Start:** [`docs/QUICKSTART.md`](docs/QUICKSTART.md) - 5-minute setup guide
+- **Full Guide:** [`docs/KEYSTONE_DEPLOYMENT.md`](docs/KEYSTONE_DEPLOYMENT.md) - Complete deployment instructions
+- **Test Plan:** [`docs/KEYSTONE_TEST_PLAN.md`](docs/KEYSTONE_TEST_PLAN.md) - Validation checklist
+- **Compatibility Report:** [`docs/KEYSTONE_FIX_REPORT.md`](docs/KEYSTONE_FIX_REPORT.md) - Technical details
+
+**Quick overview:**
+
+1. Set environment variables:
+   ```bash
+   FORCE_SCRIPT_NAME=/your-app-slug
+   VITE_BASE_PATH=/your-app-slug
+   USE_X_FORWARDED_HOST=True
+   ```
+
+2. Build with subpath:
+   ```bash
+   docker-compose build --build-arg VITE_BASE_PATH=/your-app-slug
+   ```
+
+3. Add Traefik labels to nginx service:
+   ```yaml
+   labels:
+     - "traefik.http.routers.accredify.rule=PathPrefix(`/your-app-slug`)"
+     - "traefik.http.middlewares.accredify-stripprefix.stripprefix.prefixes=/your-app-slug"
+   ```
+
+Access at: `http://VPS_IP/your-app-slug/`
 
 ## Project Structure
 
@@ -216,19 +250,34 @@ accredify/
 ## Environment Variables
 
 ### Backend (.env)
-```
+```bash
+# Django Core
 DJANGO_SECRET_KEY=<random-secret-key>
 DEBUG=True/False
 DATABASE_URL=<postgresql-connection-string>
 GEMINI_API_KEY=<google-gemini-api-key>
+
+# Network Configuration
 ALLOWED_HOSTS=localhost,127.0.0.1
 CORS_ALLOWED_ORIGINS=http://localhost:5173
+CSRF_TRUSTED_ORIGINS=http://localhost,http://127.0.0.1
+
+# Keystone/Reverse Proxy (optional)
+FORCE_SCRIPT_NAME=/app-slug              # Set for subpath deployment
+USE_X_FORWARDED_HOST=True/False          # Enable for reverse proxy
+USE_HTTPS_PROXY=True/False               # Enable if TLS at proxy
 ```
 
 ### Frontend (.env.local)
-```
+```bash
+# Standard deployment
 VITE_API_URL=http://localhost:8000/api
+
+# Keystone deployment
+VITE_BASE_PATH=/app-slug
 ```
+
+See [`.env.example`](.env.example) for complete documentation.
 
 ## Contributing
 
