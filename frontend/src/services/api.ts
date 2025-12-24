@@ -11,7 +11,11 @@ import {
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// Support deployment under a subpath for Keystone
+// When deployed under /{APP_SLUG}/, the frontend is accessed at http://VPS_IP/{APP_SLUG}/
+// API calls need to be relative to the current base path
+const BASE_PATH = import.meta.env.VITE_BASE_PATH || '';
+const API_BASE_URL = import.meta.env.VITE_API_URL || `${BASE_PATH}/api`.replace(/\/+/g, '/').replace(/^\/$/, '');
 
 function debugLog(payload: {
   location: string;

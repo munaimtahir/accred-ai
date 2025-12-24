@@ -20,6 +20,18 @@ DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+# Keystone deployment support: Django needs to know it's running under a subpath
+# When deployed via Keystone, set FORCE_SCRIPT_NAME to the APP_SLUG (e.g., /accred-ai)
+# Traefik strips the prefix before forwarding, but Django needs to generate URLs with it
+FORCE_SCRIPT_NAME = os.environ.get('FORCE_SCRIPT_NAME', '')
+
+# Reverse proxy settings for Keystone deployment
+USE_X_FORWARDED_HOST = os.environ.get('USE_X_FORWARDED_HOST', 'False').lower() == 'true'
+
+# If behind HTTPS-terminating proxy (like Traefik with TLS)
+if os.environ.get('USE_HTTPS_PROXY', 'False').lower() == 'true':
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 
 # Application definition
 
@@ -152,6 +164,13 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = os.environ.get(
     'CORS_ALLOWED_ORIGINS', 
     'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000'
+).split(',')
+
+# CSRF settings for Keystone deployment
+# Add trusted origins for the VPS IP/domain
+CSRF_TRUSTED_ORIGINS = os.environ.get(
+    'CSRF_TRUSTED_ORIGINS',
+    'http://localhost,http://127.0.0.1'
 ).split(',')
 
 CORS_ALLOW_CREDENTIALS = True

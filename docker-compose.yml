@@ -34,6 +34,10 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost,http://localhost:80,http://localhost:5173}
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-http://localhost,http://127.0.0.1}
+      - FORCE_SCRIPT_NAME=${FORCE_SCRIPT_NAME:-}
+      - USE_X_FORWARDED_HOST=${USE_X_FORWARDED_HOST:-False}
+      - USE_HTTPS_PROXY=${USE_HTTPS_PROXY:-False}
     depends_on:
       db:
         condition: service_healthy
@@ -48,6 +52,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_BASE_PATH: ${VITE_BASE_PATH:-/}
     depends_on:
       - backend
     networks:
