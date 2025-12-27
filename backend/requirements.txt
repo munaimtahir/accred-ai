@@ -7,6 +7,7 @@ Django==6.0
 dj-database-url==3.0.1
 django-cors-headers==4.9.0
 djangorestframework==3.16.1
+djangorestframework-simplejwt==5.3.1
 google-ai-generativelanguage==0.6.15
 google-api-core==2.28.1
 google-api-python-client==2.187.0
@@ -39,3 +40,9 @@ typing-inspection==0.4.2
 typing_extensions==4.15.0
 uritemplate==4.2.0
 urllib3==2.6.2
+pytest==8.3.4
+pytest-django==4.9.0
+pytest-cov==6.0.0
+pytest-mock==3.14.0
+sentry-sdk[django]==2.19.0
+drf-spectacular==0.27.2

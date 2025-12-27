@@ -1,5 +1,39 @@
 import uuid
 from django.db import models
+from django.contrib.auth.models import User
+
+
+class UserRole(models.TextChoices):
+    """User roles for role-based access control"""
+    ADMIN = 'admin', 'Administrator'
+    PROJECT_MANAGER = 'project_manager', 'Project Manager'
+    MEMBER = 'member', 'Member'
+
+
+class UserProfile(models.Model):
+    """Extended user profile with role-based access control"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    role = models.CharField(
+        max_length=20,
+        choices=UserRole.choices,
+        default=UserRole.MEMBER
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} ({self.role})"
+
+    @property
+    def is_admin(self):
+        return self.role == UserRole.ADMIN
+
+    @property
+    def is_project_manager(self):
+        return self.role == UserRole.PROJECT_MANAGER
 
 
 class ComplianceStatus(models.TextChoices):
@@ -43,6 +77,18 @@ class Project(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='owned_projects',
+        null=True,
+        blank=True
+    )
+    members = models.ManyToManyField(
+        User,
+        related_name='member_projects',
+        blank=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

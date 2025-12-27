@@ -1,18 +1,30 @@
 from django.contrib import admin
-from .models import Project, Indicator, Evidence, DriveConfig
+from .models import Project, Indicator, Evidence, DriveConfig, UserProfile
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ['user', 'role', 'created_at']
+    list_filter = ['role', 'created_at']
+    search_fields = ['user__username', 'user__email']
 
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ['name', 'description', 'created_at', 'indicator_count']
+    list_display = ['name', 'owner', 'description', 'created_at', 'indicator_count', 'member_count']
     search_fields = ['name', 'description']
     list_filter = ['created_at']
     ordering = ['-created_at']
     readonly_fields = ['id', 'created_at']
+    filter_horizontal = ['members']
 
     def indicator_count(self, obj):
         return obj.indicators.count()
     indicator_count.short_description = 'Indicators'
+    
+    def member_count(self, obj):
+        return obj.members.count()
+    member_count.short_description = 'Members'
 
 
 @admin.register(Indicator)

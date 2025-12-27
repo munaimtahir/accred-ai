@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import Project, Indicator, Evidence, DriveConfig
+from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .models import Project, Indicator, Evidence, DriveConfig, UserProfile, UserRole
 
 
 def to_camel_case(snake_str):
@@ -176,3 +179,98 @@ class ComplianceGuideInputSerializer(serializers.Serializer):
 
 class AnalyzeTasksInputSerializer(serializers.Serializer):
     indicators = serializers.ListField(child=serializers.DictField())
+
+
+# Authentication serializers
+class UserSerializer(CamelCaseModelSerializer):
+    """Serializer for user representation"""
+    role = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'is_staff']
+        read_only_fields = ['id', 'is_staff']
+    
+    def get_role(self, obj):
+        """Get user role from profile"""
+        if hasattr(obj, 'profile'):
+            return obj.profile.role
+        return UserRole.MEMBER
+
+
+class UserRegistrationSerializer(serializers.Serializer):
+    """Serializer for user registration"""
+    username = serializers.CharField(max_length=150, required=True)
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
+    password_confirm = serializers.CharField(write_only=True, required=True)
+    first_name = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    role = serializers.ChoiceField(choices=UserRole.choices, default=UserRole.MEMBER, required=False)
+    
+    def validate(self, attrs):
+        """Validate that passwords match"""
+        if attrs['password'] != attrs['password_confirm']:
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
+        return attrs
+    
+    def validate_username(self, value):
+        """Validate username is unique"""
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("A user with this username already exists.")
+        return value
+    
+    def validate_email(self, value):
+        """Validate email is unique"""
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
+    
+    def create(self, validated_data):
+        """Create user and profile"""
+        validated_data.pop('password_confirm')
+        role = validated_data.pop('role', UserRole.MEMBER)
+        password = validated_data.pop('password')
+        
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            password=password,
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', ''),
+        )
+        
+        # Create user profile with role
+        UserProfile.objects.create(user=user, role=role)
+        
+        return user
+
+
+class LoginSerializer(TokenObtainPairSerializer):
+    """Custom login serializer that extends JWT token serializer"""
+    
+    def validate(self, attrs):
+        """Add user data to token response"""
+        data = super().validate(attrs)
+        data['user'] = UserSerializer(self.user).data
+        return data
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """Serializer for password change"""
+    old_password = serializers.CharField(required=True, write_only=True)
+    new_password = serializers.CharField(required=True, write_only=True, validators=[validate_password])
+    new_password_confirm = serializers.CharField(required=True, write_only=True)
+    
+    def validate(self, attrs):
+        """Validate that new passwords match"""
+        if attrs['new_password'] != attrs['new_password_confirm']:
+            raise serializers.ValidationError({"new_password_confirm": "New passwords do not match."})
+        return attrs
+    
+    def validate_old_password(self, value):
+        """Validate old password is correct"""
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Old password is incorrect.")
+        return value
