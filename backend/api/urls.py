@@ -22,6 +22,8 @@ urlpatterns = [
     # AI Service endpoints
     path('analyze-checklist/', views.analyze_checklist, name='analyze-checklist'),
     path('analyze-categorization/', views.analyze_categorization, name='analyze-categorization'),
+    path('analyze-indicator-explanations/', views.analyze_indicator_explanations, name='analyze-indicator-explanations'),
+    path('analyze-frequency-grouping/', views.analyze_frequency_grouping, name='analyze-frequency-grouping'),
     path('ask-assistant/', views.ask_assistant, name='ask-assistant'),
     path('report-summary/', views.report_summary, name='report-summary'),
     path('convert-document/', views.convert_document, name='convert-document'),

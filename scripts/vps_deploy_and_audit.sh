@@ -96,8 +96,17 @@ py_get() {
   python3 - "$1" <<'PY'
 import json,sys
 expr=sys.argv[1]
-data=json.load(sys.stdin)
-print(eval(expr, {"data": data}))
+try:
+    text = sys.stdin.read().strip()
+    if not text:
+        print("")
+        sys.exit(0)
+    data=json.loads(text)
+    result = eval(expr, {"data": data})
+    print(result if result is not None else "")
+except (json.JSONDecodeError, ValueError) as e:
+    print("")
+    sys.exit(0)
 PY
 }
 
