@@ -33,8 +33,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:8016:8000"
+    # Backend port not exposed externally - nginx handles routing
     volumes:
       - ./backend:/app
       - static_volume:/app/staticfiles
@@ -82,8 +81,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:8017:80"
+    # Frontend port not exposed externally - nginx handles routing
     depends_on:
       - backend
     healthcheck:
@@ -99,41 +97,39 @@ services:
     networks:
       - accredify-network
 
-  # Nginx Reverse Proxy - DISABLED (Caddy is already running on host)
-  # Host Caddy will route phc.alshifalab.pk and api.phc.alshifalab.pk to backend/frontend
-  # nginx:
-  #   image: nginx:alpine
-  #   restart: unless-stopped
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-  #     - ./nginx/conf.d:/etc/nginx/conf.d:ro
-  #     - static_volume:/app/staticfiles:ro
-  #     - media_volume:/app/media:ro
-  #   depends_on:
-  #     backend:
-  #       condition: service_healthy
-  #     frontend:
-  #       condition: service_healthy
-  #   healthcheck:
-  #     test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: '0.5'
-  #         memory: 256M
-  #   networks:
-  #     - accredify-network
-  #   logging:
-  #     driver: "json-file"
-  #     options:
-  #       max-size: "10m"
-  #       max-file: "3"
+  # Nginx Reverse Proxy - routes frontend and backend, exposed on port 8016 for Caddy
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8016:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - static_volume:/app/staticfiles:ro
+      - media_volume:/app/media:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    networks:
+      - accredify-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   postgres_data:
