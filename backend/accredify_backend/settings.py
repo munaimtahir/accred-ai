@@ -35,7 +35,7 @@ if not DEBUG:
             "SECURITY ERROR: You must set ALLOWED_HOSTS environment variable in production!"
         )
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'api.phc.alshifalab.pk,phc.alshifalab.pk,localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -230,10 +230,16 @@ SIMPLE_JWT = {
 # CORS settings
 CORS_ALLOWED_ORIGINS = os.environ.get(
     'CORS_ALLOWED_ORIGINS', 
-    'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000'
+    'https://phc.alshifalab.pk,http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000'
 ).split(',')
 
 CORS_ALLOW_CREDENTIALS = True
+
+# CSRF Trusted Origins
+CSRF_TRUSTED_ORIGINS = os.environ.get(
+    'CSRF_TRUSTED_ORIGINS',
+    'https://phc.alshifalab.pk,https://api.phc.alshifalab.pk,http://localhost:5173,http://localhost:3000'
+).split(',')
 
 # For development, allow all origins
 if DEBUG:

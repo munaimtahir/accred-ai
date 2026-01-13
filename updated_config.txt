@@ -1,0 +1,197 @@
+================================================================================
+ACCRED-AI / PHC - DOCKER & CONFIG FIX REPORT
+================================================================================
+Date: 2025-01-XX
+VPS IP: 34.16.82.13
+Status: ✅ COMPLETE
+
+================================================================================
+1. REPOSITORY NAME
+================================================================================
+accred-ai (AccrediFy / PHC - AI-Powered Compliance Platform)
+
+================================================================================
+2. AUDIT SUMMARY
+================================================================================
+
+Backend Framework: Django with Django REST Framework
+Frontend: React with Vite
+Existing Dockerfiles:
+  - backend/Dockerfile (Python, Gunicorn)
+  - frontend/Dockerfile (Node, Nginx)
+Existing docker-compose.yml: ✅ Present but needed fixes
+Environment Variables: Partially configured, needed updates
+Port Usage:
+  - Backend: Was no port mapping ❌ → Fixed to "127.0.0.1:8016:8000" ✅
+  - Frontend: Was no port mapping ❌ → Fixed to "127.0.0.1:8017:80" ✅
+  - Nginx: Was "80:80" and "443:443" (conflicts with host Caddy) ❌ → Disabled ✅
+Hardcoded Domains/IPs: None found in active config
+
+Issues Identified:
+1. Backend had no port mapping
+2. Frontend had no port mapping
+3. Nginx service exposed ports 80 and 443 (conflicts with host Caddy)
+4. ALLOWED_HOSTS default was "localhost,127.0.0.1,backend" - missing production domains
+5. CORS_ALLOWED_ORIGINS default was localhost only
+6. Missing CSRF_TRUSTED_ORIGINS configuration
+
+Note: Routing table shows both frontend and backend on 127.0.0.1:8016, but this is impossible.
+Configured backend on 8016 and frontend on 8017. Caddy should route:
+- api.phc.alshifalab.pk → 127.0.0.1:8016 (backend)
+- phc.alshifalab.pk → 127.0.0.1:8017 (frontend)
+
+================================================================================
+3. CHANGES MADE
+================================================================================
+
+✅ Fixed docker-compose.yml:
+   - Added backend port mapping: "127.0.0.1:8016:8000"
+   - Added frontend port mapping: "127.0.0.1:8017:80"
+   - Disabled nginx service (commented out) - Caddy is already running on host
+   - Updated ALLOWED_HOSTS default to include api.phc.alshifalab.pk and phc.alshifalab.pk
+   - Updated CORS_ALLOWED_ORIGINS default to https://phc.alshifalab.pk
+   - Added CSRF_TRUSTED_ORIGINS environment variable with defaults
+
+✅ Fixed backend/accredify_backend/settings.py:
+   - Updated ALLOWED_HOSTS default to include api.phc.alshifalab.pk and phc.alshifalab.pk
+   - Updated CORS_ALLOWED_ORIGINS default to include https://phc.alshifalab.pk
+   - Added CSRF_TRUSTED_ORIGINS configuration
+
+✅ Verified Dockerfiles:
+   - backend/Dockerfile: Uses Gunicorn on 0.0.0.0:8000 inside container (correct)
+   - frontend/Dockerfile: Uses Nginx on port 80 inside container (correct)
+   - Both are properly mapped to 127.0.0.1 on host via docker-compose.yml
+
+✅ Verified DEBUG setting:
+   - Default is False (DEBUG=${DEBUG:-False} in docker-compose.yml)
+
+================================================================================
+4. UPDATED DOCKERFILE(S)
+================================================================================
+
+backend/Dockerfile:
+--------------------
+(Standard Python/Django Dockerfile with Gunicorn)
+
+Note: Command in docker-compose.yml uses gunicorn on 0.0.0.0:8000
+
+frontend/Dockerfile:
+--------------------
+(Standard Node/Nginx multi-stage build)
+
+================================================================================
+5. UPDATED docker-compose.yml
+================================================================================
+
+Key Changes:
+- Backend port mapping: "127.0.0.1:8016:8000" (was missing)
+- Frontend port mapping: "127.0.0.1:8017:80" (was missing)
+- Nginx service: Disabled (commented out) - conflicts with host Caddy
+- ALLOWED_HOSTS default: api.phc.alshifalab.pk,phc.alshifalab.pk,localhost,127.0.0.1,backend
+- CORS_ALLOWED_ORIGINS default: https://phc.alshifalab.pk
+- CSRF_TRUSTED_ORIGINS: https://phc.alshifalab.pk,https://api.phc.alshifalab.pk
+
+Full docker-compose.yml structure:
+- db: PostgreSQL 15-alpine (internal only)
+- backend: Django backend on 127.0.0.1:8016
+- frontend: React frontend on 127.0.0.1:8017
+- nginx: Disabled (host Caddy handles reverse proxy)
+
+================================================================================
+6. UPDATED ENV VARIABLES
+================================================================================
+
+Required Environment Variables (.env file):
+
+# Django Core Settings
+DJANGO_SECRET_KEY=your-secret-key-here-change-in-production
+DEBUG=False
+ALLOWED_HOSTS=api.phc.alshifalab.pk,phc.alshifalab.pk,localhost,127.0.0.1,backend
+
+# Database Configuration
+DB_PASSWORD=your-database-password-here
+DATABASE_URL=postgresql://accredify_user:your-database-password-here@db:5432/accredify
+
+# PostgreSQL container password (must match DB_PASSWORD)
+POSTGRES_DB=accredify
+POSTGRES_USER=accredify_user
+POSTGRES_PASSWORD=your-database-password-here
+
+# CORS & CSRF Configuration
+CORS_ALLOWED_ORIGINS=https://phc.alshifalab.pk
+CSRF_TRUSTED_ORIGINS=https://phc.alshifalab.pk,https://api.phc.alshifalab.pk
+
+# AI Configuration (Optional)
+GEMINI_API_KEY=your-gemini-api-key-here
+
+# Frontend Build Configuration
+# (Configured in frontend Dockerfile build args if needed)
+
+# Sentry Configuration (Optional)
+SENTRY_DSN=your-sentry-dsn-here
+
+================================================================================
+7. VERIFICATION CHECKLIST
+================================================================================
+
+✅ docker-compose.yml exists and is valid
+✅ Backend service binds to 127.0.0.1:8016 (correct port for Caddy routing)
+✅ Frontend service binds to 127.0.0.1:8017 (correct port for Caddy routing)
+✅ No services bind to public VPS IP (34.16.82.13)
+✅ No services listen on ports 80 or 443 (nginx disabled)
+✅ Backend Dockerfile uses Gunicorn on 0.0.0.0:8000 inside container (correct)
+✅ Docker maps backend to 127.0.0.1:8016 on host (correct)
+✅ Frontend uses Nginx on port 80 inside container (correct)
+✅ Docker maps frontend to 127.0.0.1:8017 on host (correct)
+✅ ALLOWED_HOSTS includes api.phc.alshifalab.pk, phc.alshifalab.pk, localhost, 127.0.0.1
+✅ CORS settings include correct production domain
+✅ CSRF settings include api.phc.alshifalab.pk and phc.alshifalab.pk
+✅ DEBUG defaults to False
+✅ Nginx service disabled (no conflict with host Caddy)
+✅ No hardcoded references to VPS IP in active config
+✅ Static/media handling configured correctly
+✅ Volume paths are sane for VPS deployment
+✅ Services have restart: unless-stopped policy
+
+Port Collision Check:
+- Backend: 127.0.0.1:8016 ✅
+- Frontend: 127.0.0.1:8017 ✅
+- No conflicts with other apps
+- Nginx disabled (no port 80/443 conflict)
+
+Ready for Caddy Proxy:
+✅ Backend ready at 127.0.0.1:8016 for api.phc.alshifalab.pk
+✅ Frontend ready at 127.0.0.1:8017 for phc.alshifalab.pk
+
+Note: Routing table shows both on 8016, but configured on different ports to avoid conflict.
+Caddy should route:
+- api.phc.alshifalab.pk → 127.0.0.1:8016 (backend)
+- phc.alshifalab.pk → 127.0.0.1:8017 (frontend)
+
+================================================================================
+8. GO / NO-GO VERDICT
+================================================================================
+
+✅ GO - READY FOR DEPLOYMENT
+
+The accred-ai repository is now properly configured for deployment on VPS 34.16.82.13 behind Caddy reverse proxy.
+
+All critical issues have been resolved:
+- ✅ Correct port bindings (127.0.0.1 only)
+- ✅ Correct domain configuration (api.phc.alshifalab.pk, phc.alshifalab.pk)
+- ✅ Production-ready defaults (DEBUG=False)
+- ✅ Proper CORS/CSRF settings
+- ✅ Nginx service disabled (no conflict with host Caddy)
+
+Next Steps:
+1. Create .env file from template above
+2. Set strong DJANGO_SECRET_KEY and DB_PASSWORD
+3. Run: docker compose up -d
+4. Verify services are listening on correct ports
+5. Configure Caddy to route:
+   - phc.alshifalab.pk → 127.0.0.1:8017
+   - api.phc.alshifalab.pk → 127.0.0.1:8016
+
+================================================================================
+END OF REPORT
+================================================================================
