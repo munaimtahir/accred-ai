@@ -102,6 +102,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     """ViewSet for Project CRUD operations"""
     permission_classes = [IsProjectOwnerOrReadOnly]
     serializer_class = ProjectSerializer
+    queryset = Project.objects.all()
     
     def get_queryset(self):
         """Filter projects to show only user's projects"""
