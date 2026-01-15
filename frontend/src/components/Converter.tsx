@@ -49,7 +49,10 @@ export default function Converter({ onImportProject }: ConverterProps) {
       const csv = await api.convertDocument(documentText);
       setCsvContent(csv);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Conversion failed');
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setError(errorMsg.includes('Sign in required for AI features')
+        ? 'Sign in required for AI features'
+        : errorMsg);
     } finally {
       setIsConverting(false);
     }

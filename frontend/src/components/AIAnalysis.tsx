@@ -67,7 +67,10 @@ export default function AIAnalysis({
         onUpdateIndicator(id, { aiCategorization: 'manual' });
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to categorize indicators');
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setError(errorMsg.includes('Sign in required for AI features')
+        ? 'Sign in required for AI features'
+        : errorMsg);
     } finally {
       setIsAnalyzing(false);
     }
@@ -138,7 +141,10 @@ export default function AIAnalysis({
       const result = await api.analyzeIndicatorExplanations(indicators);
       setExplanations(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to analyze indicator explanations');
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setError(errorMsg.includes('Sign in required for AI features')
+        ? 'Sign in required for AI features'
+        : errorMsg);
     } finally {
       setIsAnalyzingExplanations(false);
     }
@@ -181,7 +187,10 @@ export default function AIAnalysis({
         });
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to analyze frequency grouping');
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setError(errorMsg.includes('Sign in required for AI features')
+        ? 'Sign in required for AI features'
+        : errorMsg);
     } finally {
       setIsAnalyzingFrequency(false);
     }

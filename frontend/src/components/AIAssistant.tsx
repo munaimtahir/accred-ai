@@ -65,10 +65,15 @@ export default function AIAssistant({ indicators }: AIAssistantProps) {
 
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      const content = errorMsg.includes('Sign in required for AI features')
+        ? "Sign in required for AI features. Please sign in to use the AI assistant."
+        : "I'm sorry, I encountered an error processing your request. Please try again later.";
+      
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "I'm sorry, I encountered an error processing your request. Please try again later.",
+        content,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);

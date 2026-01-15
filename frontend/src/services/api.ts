@@ -10,7 +10,8 @@ import {
   FrequencyGroupingResult
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { getAccessToken, getRefreshToken, setTokens, clearTokens } from '../auth/tokens';
+import { getAccessToken, getRefreshToken, setTokens, clearTokens, isAuthenticated as checkAuth } from '../auth/tokens';
+import { shouldUseBackend, shouldUseLocalStorage, DataMode } from '../state/dataMode';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -230,6 +231,33 @@ function setLocalData(data: { projects: Project[] }): void {
   localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
 }
 
+/**
+ * Check if we should fallback to localStorage
+ * Returns true only if user is unauthenticated AND in offline mode
+ */
+function shouldFallbackToLocalStorage(): boolean {
+  const authenticated = checkAuth();
+  return shouldUseLocalStorage(authenticated);
+}
+
+/**
+ * Create a network error for authenticated users
+ */
+function createNetworkError(operation: string, originalError: unknown): Error {
+  const message = originalError instanceof Error ? originalError.message : String(originalError);
+  return new Error(`Server unavailable. ${operation} failed. Changes not saved. ${message ? `(${message})` : ''}`);
+}
+
+/**
+ * Check if AI features are available (must be online/authenticated)
+ * Throws error if offline mode
+ */
+function requireAIFeatures(): void {
+  if (shouldFallbackToLocalStorage()) {
+    throw new Error('Sign in required for AI features');
+  }
+}
+
 // API Functions
 export const api = {
   // Projects
@@ -237,8 +265,13 @@ export const api = {
     try {
       return await apiRequest<Project[]>('/projects/');
     } catch (error) {
-      console.warn('API unavailable, using local storage:', error);
-      return getLocalData().projects;
+      // Only fallback to localStorage if unauthenticated and in offline mode
+      if (shouldFallbackToLocalStorage()) {
+        console.warn('API unavailable, using local storage (offline mode):', error);
+        return getLocalData().projects;
+      }
+      // If authenticated, throw error (no localStorage fallback)
+      throw createNetworkError('Loading projects', error);
     }
   },
 
@@ -255,49 +288,54 @@ export const api = {
         body: JSON.stringify(data),
       });
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:api_failed_using_local',data:{errName:(error as any)?.name,errMsg:String((error as any)?.message||error)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2'})}).catch(()=>{});
-      // #endregion
-      console.warn('API unavailable, using local storage:', error);
-      const localData = getLocalData();
-      // #region agent log
-      fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:before_uuid',data:{hasCrypto:typeof (globalThis as any).crypto !== 'undefined',hasRandomUUID:typeof (globalThis as any).crypto?.randomUUID === 'function',randomUUIDType:typeof (globalThis as any).crypto?.randomUUID},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
-      // #endregion
-      debugLog({
-        location: 'frontend/src/services/api.ts:createProject',
-        message: 'createProject:offline_mode_id_strategy',
-        data: {
-          apiBase: API_BASE_URL,
-          hasCrypto: typeof (globalThis as any).crypto !== 'undefined',
-          hasRandomUUID: typeof (globalThis as any).crypto?.randomUUID === 'function',
-          willUse: typeof (globalThis as any).crypto?.randomUUID === 'function' ? 'crypto.randomUUID' : 'uuid.v4',
-        },
-        hypothesisId: 'H1',
-        runId: 'pre-fix',
-      });
-      const newProject: Project = {
-        id: generateId(),
-        name: data.name,
-        description: data.description,
-        indicators: (data.indicators || []).map((ind, index) => ({
+      // Only fallback to localStorage if unauthenticated and in offline mode
+      if (shouldFallbackToLocalStorage()) {
+        // #region agent log
+        fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:api_failed_using_local',data:{errName:(error as any)?.name,errMsg:String((error as any)?.message||error)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2'})}).catch(()=>{});
+        // #endregion
+        console.warn('API unavailable, using local storage (offline mode):', error);
+        const localData = getLocalData();
+        // #region agent log
+        fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:before_uuid',data:{hasCrypto:typeof (globalThis as any).crypto !== 'undefined',hasRandomUUID:typeof (globalThis as any).crypto?.randomUUID === 'function',randomUUIDType:typeof (globalThis as any).crypto?.randomUUID},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
+        // #endregion
+        debugLog({
+          location: 'frontend/src/services/api.ts:createProject',
+          message: 'createProject:offline_mode_id_strategy',
+          data: {
+            apiBase: API_BASE_URL,
+            hasCrypto: typeof (globalThis as any).crypto !== 'undefined',
+            hasRandomUUID: typeof (globalThis as any).crypto?.randomUUID === 'function',
+            willUse: typeof (globalThis as any).crypto?.randomUUID === 'function' ? 'crypto.randomUUID' : 'uuid.v4',
+          },
+          hypothesisId: 'H1',
+          runId: 'pre-fix',
+        });
+        const newProject: Project = {
           id: generateId(),
-          section: ind.section || 'General',
-          standard: ind.standard || `STD-${index + 1}`,
-          indicator: ind.indicator || 'New Indicator',
-          description: ind.description || '',
-          score: ind.score || 10,
-          status: ind.status || 'Not Started',
-          evidence: [],
-          ...ind,
-        })) as Indicator[],
-        createdAt: new Date().toISOString(),
-      };
-      // #region agent log
-      fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:local_created',data:{projectIdType:typeof (newProject as any)?.id,indicatorsCount:Array.isArray((newProject as any)?.indicators)?(newProject as any).indicators.length:null},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
-      localData.projects.push(newProject);
-      setLocalData(localData);
-      return newProject;
+          name: data.name,
+          description: data.description,
+          indicators: (data.indicators || []).map((ind, index) => ({
+            id: generateId(),
+            section: ind.section || 'General',
+            standard: ind.standard || `STD-${index + 1}`,
+            indicator: ind.indicator || 'New Indicator',
+            description: ind.description || '',
+            score: ind.score || 10,
+            status: ind.status || 'Not Started',
+            evidence: [],
+            ...ind,
+          })) as Indicator[],
+          createdAt: new Date().toISOString(),
+        };
+        // #region agent log
+        fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:local_created',data:{projectIdType:typeof (newProject as any)?.id,indicatorsCount:Array.isArray((newProject as any)?.indicators)?(newProject as any).indicators.length:null},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3'})}).catch(()=>{});
+        // #endregion
+        localData.projects.push(newProject);
+        setLocalData(localData);
+        return newProject;
+      }
+      // If authenticated, throw error (no localStorage fallback)
+      throw createNetworkError('Creating project', error);
     }
   },
 
@@ -308,13 +346,18 @@ export const api = {
         body: JSON.stringify(data),
       });
     } catch (error) {
-      console.warn('API unavailable, using local storage:', error);
-      const localData = getLocalData();
-      const projectIndex = localData.projects.findIndex(p => p.id === id);
-      if (projectIndex === -1) throw new Error('Project not found');
-      localData.projects[projectIndex] = { ...localData.projects[projectIndex], ...data };
-      setLocalData(localData);
-      return localData.projects[projectIndex];
+      // Only fallback to localStorage if unauthenticated and in offline mode
+      if (shouldFallbackToLocalStorage()) {
+        console.warn('API unavailable, using local storage (offline mode):', error);
+        const localData = getLocalData();
+        const projectIndex = localData.projects.findIndex(p => p.id === id);
+        if (projectIndex === -1) throw new Error('Project not found');
+        localData.projects[projectIndex] = { ...localData.projects[projectIndex], ...data };
+        setLocalData(localData);
+        return localData.projects[projectIndex];
+      }
+      // If authenticated, throw error (no localStorage fallback)
+      throw createNetworkError('Updating project', error);
     }
   },
 
@@ -324,10 +367,16 @@ export const api = {
         method: 'DELETE',
       });
     } catch (error) {
-      console.warn('API unavailable, using local storage:', error);
-      const localData = getLocalData();
-      localData.projects = localData.projects.filter(p => p.id !== id);
-      setLocalData(localData);
+      // Only fallback to localStorage if unauthenticated and in offline mode
+      if (shouldFallbackToLocalStorage()) {
+        console.warn('API unavailable, using local storage (offline mode):', error);
+        const localData = getLocalData();
+        localData.projects = localData.projects.filter(p => p.id !== id);
+        setLocalData(localData);
+        return;
+      }
+      // If authenticated, throw error (no localStorage fallback)
+      throw createNetworkError('Deleting project', error);
     }
   },
 
@@ -339,20 +388,25 @@ export const api = {
         body: JSON.stringify(data),
       });
     } catch (error) {
-      console.warn('API unavailable, using local storage:', error);
-      const localData = getLocalData();
-      for (const project of localData.projects) {
-        const indicatorIndex = project.indicators.findIndex(i => i.id === id);
-        if (indicatorIndex !== -1) {
-          project.indicators[indicatorIndex] = { 
-            ...project.indicators[indicatorIndex], 
-            ...data 
-          };
-          setLocalData(localData);
-          return project.indicators[indicatorIndex];
+      // Only fallback to localStorage if unauthenticated and in offline mode
+      if (shouldFallbackToLocalStorage()) {
+        console.warn('API unavailable, using local storage (offline mode):', error);
+        const localData = getLocalData();
+        for (const project of localData.projects) {
+          const indicatorIndex = project.indicators.findIndex(i => i.id === id);
+          if (indicatorIndex !== -1) {
+            project.indicators[indicatorIndex] = { 
+              ...project.indicators[indicatorIndex], 
+              ...data 
+            };
+            setLocalData(localData);
+            return project.indicators[indicatorIndex];
+          }
         }
+        throw new Error('Indicator not found');
       }
-      throw new Error('Indicator not found');
+      // If authenticated, throw error (no localStorage fallback)
+      throw createNetworkError('Updating indicator', error);
     }
   },
 
@@ -362,11 +416,16 @@ export const api = {
         method: 'POST',
       });
     } catch (error) {
-      console.warn('API unavailable, using local storage:', error);
-      return this.updateIndicator(id, { 
-        status: 'Compliant', 
-        lastUpdated: new Date().toISOString() 
-      });
+      // Only fallback to localStorage if unauthenticated and in offline mode
+      if (shouldFallbackToLocalStorage()) {
+        console.warn('API unavailable, using local storage (offline mode):', error);
+        return this.updateIndicator(id, { 
+          status: 'Compliant', 
+          lastUpdated: new Date().toISOString() 
+        });
+      }
+      // If authenticated, throw error (no localStorage fallback)
+      throw createNetworkError('Quick logging indicator', error);
     }
   },
 
@@ -394,26 +453,31 @@ export const api = {
         headers,
       });
     } catch (error) {
-      console.warn('API unavailable, using local storage:', error);
-      const localData = getLocalData();
-      const newEvidence: Evidence = {
-        id: generateId(),
-        dateUploaded: new Date().toISOString(),
-        type: data.type,
-        fileName: data.fileName,
-        fileUrl: data.fileUrl,
-        content: data.content,
-      };
-      
-      for (const project of localData.projects) {
-        const indicator = project.indicators.find(i => i.id === data.indicator);
-        if (indicator) {
-          indicator.evidence.push(newEvidence);
-          setLocalData(localData);
-          return newEvidence;
+      // Only fallback to localStorage if unauthenticated and in offline mode
+      if (shouldFallbackToLocalStorage()) {
+        console.warn('API unavailable, using local storage (offline mode):', error);
+        const localData = getLocalData();
+        const newEvidence: Evidence = {
+          id: generateId(),
+          dateUploaded: new Date().toISOString(),
+          type: data.type,
+          fileName: data.fileName,
+          fileUrl: data.fileUrl,
+          content: data.content,
+        };
+        
+        for (const project of localData.projects) {
+          const indicator = project.indicators.find(i => i.id === data.indicator);
+          if (indicator) {
+            indicator.evidence.push(newEvidence);
+            setLocalData(localData);
+            return newEvidence;
+          }
         }
+        throw new Error('Indicator not found');
       }
-      throw new Error('Indicator not found');
+      // If authenticated, throw error (no localStorage fallback)
+      throw createNetworkError('Creating evidence', error);
     }
   },
 
@@ -423,19 +487,28 @@ export const api = {
         method: 'DELETE',
       });
     } catch (error) {
-      console.warn('API unavailable, using local storage:', error);
-      const localData = getLocalData();
-      for (const project of localData.projects) {
-        for (const indicator of project.indicators) {
-          indicator.evidence = indicator.evidence.filter(e => e.id !== id);
+      // Only fallback to localStorage if unauthenticated and in offline mode
+      if (shouldFallbackToLocalStorage()) {
+        console.warn('API unavailable, using local storage (offline mode):', error);
+        const localData = getLocalData();
+        for (const project of localData.projects) {
+          for (const indicator of project.indicators) {
+            indicator.evidence = indicator.evidence.filter(e => e.id !== id);
+          }
         }
+        setLocalData(localData);
+        return;
       }
-      setLocalData(localData);
+      // If authenticated, throw error (no localStorage fallback)
+      throw createNetworkError('Deleting evidence', error);
     }
   },
 
   // AI Services
   async analyzeChecklist(indicators: Partial<Indicator>[]): Promise<Partial<Indicator>[]> {
+    // Block AI features in offline mode
+    requireAIFeatures();
+    
     try {
       const response = await apiRequest<{ indicators: Partial<Indicator>[] }>('/analyze-checklist/', {
         method: 'POST',
@@ -443,110 +516,60 @@ export const api = {
       });
       return response.indicators;
     } catch (error) {
-      console.warn('AI service unavailable:', error);
-      // Return indicators with default enrichment
-      return indicators.map(ind => ({
-        ...ind,
-        description: ind.description || `Compliance requirement for ${ind.indicator || 'this item'}`,
-        frequency: ind.frequency || 'One-time',
-        score: ind.score || 10,
-      }));
+      // If offline mode check passed but API failed, throw error (no fallback)
+      throw createNetworkError('Analyzing checklist', error);
     }
   },
 
   async analyzeCategorization(indicators: Indicator[]): Promise<CategorizationResult> {
+    // Block AI features in offline mode
+    requireAIFeatures();
+    
     try {
       return await apiRequest<CategorizationResult>('/analyze-categorization/', {
         method: 'POST',
         body: JSON.stringify({ indicators }),
       });
     } catch (error) {
-      console.warn('AI service unavailable:', error);
-      // Default categorization
-      const result: CategorizationResult = {
-        ai_fully_manageable: [],
-        ai_assisted: [],
-        manual: [],
-      };
-      
-      for (const ind of indicators) {
-        const text = (ind.indicator + ' ' + ind.description).toLowerCase();
-        if (text.includes('document') || text.includes('sop') || text.includes('procedure')) {
-          result.ai_fully_manageable.push(ind.id);
-        } else if (text.includes('log') || text.includes('form') || text.includes('checklist')) {
-          result.ai_assisted.push(ind.id);
-        } else {
-          result.manual.push(ind.id);
-        }
-      }
-      
-      return result;
+      // If offline mode check passed but API failed, throw error (no fallback)
+      throw createNetworkError('Analyzing categorization', error);
     }
   },
 
   async analyzeIndicatorExplanations(indicators: Indicator[]): Promise<Record<string, IndicatorExplanation>> {
+    // Block AI features in offline mode
+    requireAIFeatures();
+    
     try {
       return await apiRequest<Record<string, IndicatorExplanation>>('/analyze-indicator-explanations/', {
         method: 'POST',
         body: JSON.stringify({ indicators }),
       });
     } catch (error) {
-      console.warn('AI service unavailable:', error);
-      // Default explanations
-      const result: Record<string, IndicatorExplanation> = {};
-      for (const ind of indicators) {
-        result[ind.id] = {
-          explanation: ind.description || `Compliance requirement: ${ind.indicator}`,
-          requiredEvidence: ['document'],
-          evidenceDescription: 'Documentation required to demonstrate compliance with this requirement.',
-        };
-      }
-      return result;
+      // If offline mode check passed but API failed, throw error (no fallback)
+      throw createNetworkError('Analyzing indicator explanations', error);
     }
   },
 
   async analyzeFrequencyGrouping(indicators: Indicator[]): Promise<FrequencyGroupingResult> {
+    // Block AI features in offline mode
+    requireAIFeatures();
+    
     try {
       return await apiRequest<FrequencyGroupingResult>('/analyze-frequency-grouping/', {
         method: 'POST',
         body: JSON.stringify({ indicators }),
       });
     } catch (error) {
-      console.warn('AI service unavailable:', error);
-      // Default grouping based on existing frequency
-      const result: FrequencyGroupingResult = {
-        one_time: [],
-        daily: [],
-        weekly: [],
-        monthly: [],
-        quarterly: [],
-        annually: [],
-      };
-      
-      for (const ind of indicators) {
-        const freq = ind.frequency?.toLowerCase() || 'one-time';
-        if (freq === 'one-time') {
-          result.one_time.push(ind.id);
-        } else if (freq === 'daily') {
-          result.daily.push(ind.id);
-        } else if (freq === 'weekly') {
-          result.weekly.push(ind.id);
-        } else if (freq === 'monthly') {
-          result.monthly.push(ind.id);
-        } else if (freq === 'quarterly') {
-          result.quarterly.push(ind.id);
-        } else if (freq === 'annually') {
-          result.annually.push(ind.id);
-        } else {
-          result.one_time.push(ind.id);
-        }
-      }
-      
-      return result;
+      // If offline mode check passed but API failed, throw error (no fallback)
+      throw createNetworkError('Analyzing frequency grouping', error);
     }
   },
 
   async askAssistant(query: string, indicators?: Indicator[]): Promise<string> {
+    // Block AI features in offline mode
+    requireAIFeatures();
+    
     try {
       const response = await apiRequest<{ response: string }>('/ask-assistant/', {
         method: 'POST',
@@ -554,12 +577,15 @@ export const api = {
       });
       return response.response;
     } catch (error) {
-      console.warn('AI service unavailable:', error);
-      return "I'm sorry, but the AI assistant is not available at the moment. Please ensure the backend server is running and the Gemini API key is configured.";
+      // If offline mode check passed but API failed, throw error (no fallback)
+      throw createNetworkError('AI assistant request', error);
     }
   },
 
   async generateReportSummary(indicators: Indicator[]): Promise<string> {
+    // Block AI features in offline mode
+    requireAIFeatures();
+    
     try {
       const response = await apiRequest<{ summary: string }>('/report-summary/', {
         method: 'POST',
@@ -567,14 +593,15 @@ export const api = {
       });
       return response.summary;
     } catch (error) {
-      console.warn('AI service unavailable:', error);
-      const total = indicators.length;
-      const compliant = indicators.filter(i => i.status === 'Compliant').length;
-      return `Compliance Summary:\n\nTotal Indicators: ${total}\nCompliant: ${compliant} (${Math.round(100 * compliant / total)}%)\n\nPlease configure the AI service for a detailed analysis.`;
+      // If offline mode check passed but API failed, throw error (no fallback)
+      throw createNetworkError('Generating report summary', error);
     }
   },
 
   async convertDocument(documentText: string): Promise<string> {
+    // Block AI features in offline mode
+    requireAIFeatures();
+    
     try {
       const response = await apiRequest<{ csv_content: string }>('/convert-document/', {
         method: 'POST',
@@ -582,12 +609,15 @@ export const api = {
       });
       return response.csv_content;
     } catch (error) {
-      console.warn('AI service unavailable:', error);
-      return 'section,standard,indicator,description,score,frequency\nGeneral,GEN-001,Sample Indicator,Please configure AI to parse documents,10,One-time';
+      // If offline mode check passed but API failed, throw error (no fallback)
+      throw createNetworkError('Converting document', error);
     }
   },
 
   async generateComplianceGuide(indicator: Indicator): Promise<string> {
+    // Block AI features in offline mode
+    requireAIFeatures();
+    
     try {
       const response = await apiRequest<{ guide: string }>('/compliance-guide/', {
         method: 'POST',
@@ -595,24 +625,23 @@ export const api = {
       });
       return response.guide;
     } catch (error) {
-      console.warn('AI service unavailable:', error);
-      return `# ${indicator.indicator}\n\n## Description\n${indicator.description}\n\n## Steps to Comply\n1. Review requirements\n2. Implement procedures\n3. Document evidence\n4. Verify completion`;
+      // If offline mode check passed but API failed, throw error (no fallback)
+      throw createNetworkError('Generating compliance guide', error);
     }
   },
 
   async analyzeTasks(indicators: Indicator[]): Promise<TaskSuggestion[]> {
+    // Block AI features in offline mode
+    requireAIFeatures();
+    
     try {
       return await apiRequest<TaskSuggestion[]>('/analyze-tasks/', {
         method: 'POST',
         body: JSON.stringify({ indicators }),
       });
     } catch (error) {
-      console.warn('AI service unavailable:', error);
-      return indicators.map(ind => ({
-        indicatorId: ind.id,
-        suggestion: `Review and address: ${ind.indicator}`,
-        isActionableByAI: ind.indicator.toLowerCase().includes('document'),
-      }));
+      // If offline mode check passed but API failed, throw error (no fallback)
+      throw createNetworkError('Analyzing tasks', error);
     }
   },
 };

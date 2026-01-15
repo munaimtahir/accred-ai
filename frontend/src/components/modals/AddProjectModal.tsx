@@ -15,6 +15,7 @@ export default function AddProjectModal({ onClose, onSave }: AddProjectModalProp
   const [csvIndicators, setCsvIndicators] = useState<Partial<Indicator>[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const parseCSV = (text: string): Partial<Indicator>[] => {
@@ -103,6 +104,19 @@ export default function AddProjectModal({ onClose, onSave }: AddProjectModalProp
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Error Banner */}
+          {error && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+              <span className="text-amber-600 text-sm flex-shrink-0 mt-0.5">ℹ️</span>
+              <p className="text-sm text-amber-700 flex-1">{error}</p>
+              <button 
+                onClick={() => setError(null)}
+                className="text-amber-600 hover:text-amber-800 flex-shrink-0"
+              >
+                ×
+              </button>
+            </div>
+          )}
           {/* Project Name */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">

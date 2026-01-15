@@ -24,13 +24,19 @@ export default function Reports({ project, stats }: ReportsProps) {
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleGenerateSummary = useCallback(async () => {
     setIsGenerating(true);
+    setError(null);
     try {
       const summary = await api.generateReportSummary(project.indicators);
       setAiSummary(summary);
     } catch (error) {
-      console.error('Failed to generate summary:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      setError(errorMsg.includes('Sign in required for AI features')
+        ? 'Sign in required for AI features'
+        : 'Failed to generate summary');
     } finally {
       setIsGenerating(false);
     }
@@ -172,6 +178,20 @@ export default function Reports({ project, stats }: ReportsProps) {
           </button>
         </div>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
+          <AlertCircle className="text-red-600" />
+          <p className="text-sm text-red-700">{error}</p>
+          <button 
+            onClick={() => setError(null)}
+            className="ml-auto text-red-600 hover:text-red-800"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Report Content */}
       <div className="bg-white rounded-2xl border border-slate-200 p-8 print:p-0 print:border-0">

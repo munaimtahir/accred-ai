@@ -13,10 +13,13 @@ import {
   Home,
   Settings,
   LogOut,
-  User
+  User,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { View, Project } from '../types';
 import { User as UserType } from '../auth/AuthContext';
+import { DataMode } from '../state/dataMode';
 
 interface SidebarProps {
   currentView: View;
@@ -29,6 +32,7 @@ interface SidebarProps {
   onToggleCollapsed: () => void;
   onLogout: () => Promise<void>;
   user: UserType | null;
+  dataMode: DataMode;
 }
 
 interface NavItem {
@@ -61,8 +65,10 @@ export default function Sidebar({
   onToggleCollapsed,
   onLogout,
   user,
+  dataMode,
 }: SidebarProps) {
   const activeProject = projects.find(p => p.id === activeProjectId);
+  const isOnline = dataMode === DataMode.ONLINE;
 
   return (
     <aside 
@@ -164,6 +170,34 @@ export default function Sidebar({
 
       {/* Footer */}
       <div className="p-4 border-t border-slate-200 space-y-2">
+        {/* Mode Indicator */}
+        {!collapsed && (
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-2 ${
+            isOnline 
+              ? 'bg-green-50 text-green-700' 
+              : 'bg-amber-50 text-amber-700'
+          }`}>
+            {isOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium">
+                {isOnline ? 'Online' : 'Offline / Demo'}
+              </p>
+              {!isOnline && (
+                <p className="text-xs opacity-75">Sign in to sync</p>
+              )}
+            </div>
+          </div>
+        )}
+        {collapsed && (
+          <div className={`flex justify-center p-2 rounded-lg mb-2 ${
+            isOnline 
+              ? 'bg-green-50 text-green-700' 
+              : 'bg-amber-50 text-amber-700'
+          }`}>
+            {isOnline ? <Wifi size={18} /> : <WifiOff size={18} />}
+          </div>
+        )}
+        
         {!collapsed && user && (
           <div className="flex items-center gap-3 px-3 py-2 text-slate-600 mb-2">
             <User size={18} />

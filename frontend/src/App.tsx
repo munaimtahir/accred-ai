@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Project, Indicator, View, ComplianceStats, CreateProjectData, CreateEvidenceData } from './types';
 import { api } from './services/api';
 import { useAuth } from './auth/AuthContext';
+import { getDataMode, DataMode } from './state/dataMode';
 import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import ProjectHub from './components/ProjectHub';
@@ -22,6 +23,10 @@ import LoadingSpinner from './components/LoadingSpinner';
 function App() {
   // Authentication
   const { isAuthenticated, loading: authLoading, logout, user } = useAuth();
+  
+  // Data mode: check if we should allow offline mode
+  const dataMode = getDataMode(isAuthenticated);
+  const allowOfflineMode = dataMode === DataMode.OFFLINE && !isAuthenticated;
 
   // State
   const [projects, setProjects] = useState<Project[]>([]);
@@ -376,8 +381,8 @@ function App() {
     );
   }
 
-  // Show login page if not authenticated
-  if (!isAuthenticated) {
+  // Show login page if not authenticated AND not in offline mode
+  if (!isAuthenticated && !allowOfflineMode) {
     return <Login />;
   }
 
@@ -395,6 +400,7 @@ function App() {
         onToggleCollapsed={() => setSidebarCollapsed(!sidebarCollapsed)}
         onLogout={logout}
         user={user}
+        dataMode={dataMode}
       />
       
       {/* Main content */}
