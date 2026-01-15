@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Project, Indicator, View, ComplianceStats, CreateProjectData, CreateEvidenceData } from './types';
 import { api } from './services/api';
 import { useAuth } from './auth/AuthContext';
 import { getDataMode, DataMode } from './state/dataMode';
+import { shouldShowImportPrompt } from './offline/offlineStore';
 import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import ProjectHub from './components/ProjectHub';
@@ -18,6 +19,7 @@ import AddProjectModal from './components/modals/AddProjectModal';
 import EditProjectModal from './components/modals/EditProjectModal';
 import EvidenceModal from './components/modals/EvidenceModal';
 import DeleteConfirmationModal from './components/modals/DeleteConfirmationModal';
+import ImportOfflineDataModal from './components/modals/ImportOfflineDataModal';
 import LoadingSpinner from './components/LoadingSpinner';
 
 function App() {
@@ -40,11 +42,16 @@ function App() {
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [selectedIndicatorId, setSelectedIndicatorId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'project' | 'evidence'; id: string } | null>(null);
   
   // Sidebar collapsed state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  
+  // Track if we've checked for import prompt this session (prevent re-prompting)
+  const hasCheckedImportRef = useRef(false);
+  const previousAuthStateRef = useRef(isAuthenticated);
 
   // Computed values
   const activeProject = useMemo(() => 
@@ -94,6 +101,29 @@ function App() {
     if (isAuthenticated) {
       loadProjects();
     }
+  }, [isAuthenticated]);
+
+  // Check for offline data import prompt when transitioning from unauthenticated to authenticated
+  useEffect(() => {
+    // Only check when transitioning from false to true (login)
+    const wasUnauthenticated = !previousAuthStateRef.current;
+    const isNowAuthenticated = isAuthenticated;
+    
+    if (wasUnauthenticated && isNowAuthenticated && !hasCheckedImportRef.current) {
+      hasCheckedImportRef.current = true;
+      
+      // Small delay to ensure auth state is fully settled
+      const timer = setTimeout(() => {
+        if (shouldShowImportPrompt(isAuthenticated)) {
+          setShowImportModal(true);
+        }
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+    
+    // Update previous auth state
+    previousAuthStateRef.current = isAuthenticated;
   }, [isAuthenticated]);
 
   const loadProjects = async () => {
@@ -474,6 +504,17 @@ function App() {
             setDeleteTarget(null);
           }}
           onConfirm={handleConfirmDelete}
+        />
+      )}
+      
+      {showImportModal && (
+        <ImportOfflineDataModal
+          onClose={() => setShowImportModal(false)}
+          onImportComplete={() => {
+            setShowImportModal(false);
+            // Reload projects to show newly imported ones
+            loadProjects();
+          }}
         />
       )}
     </div>
