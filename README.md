@@ -20,6 +20,12 @@
 
 AccrediFy is an intelligent, AI-powered compliance management platform designed to simplify and standardize laboratory licensing and MSDS compliance processes. It transforms tedious manual compliance tracking into a streamlined, automated workflow.
 
+> **Scope note (current reality):** This repository currently implements a **Radiology/Clinic RIMS workflow** (Registration → Performance → Verification → PDF). Student/Faculty/Admin portal functionality is **not** present here.
+
+## Scope & Roadmap
+
+The current scope and phased stabilization plan are documented in **PROJECT_STATE.md**. Please review it before making changes.
+
 ## Features
 
 - **🗂️ Multi-Project Management**: Handle multiple accreditation processes simultaneously
