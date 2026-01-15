@@ -59,6 +59,8 @@ class EvidenceSerializer(CamelCaseModelSerializer):
         fields = [
             'id', 'indicator', 'date_uploaded', 'type', 'file_name', 
             'file_url', 'content', 'drive_file_id', 'drive_view_link', 
+            'drive_name', 'drive_mime_type', 'drive_web_view_link',
+            'drive_parent_folder_id', 'attachment_provider', 'attachment_status',
             'sync_status', 'file_size'
         ]
         read_only_fields = ['id', 'date_uploaded']

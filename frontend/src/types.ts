@@ -50,6 +50,10 @@ export interface FormField {
   required?: boolean;
 }
 
+export type AttachmentProvider = 'none' | 'gdrive';
+
+export type AttachmentStatus = 'pending' | 'linked';
+
 export interface Evidence {
   id: string;
   dateUploaded: string;
@@ -59,6 +63,12 @@ export interface Evidence {
   content?: string;
   driveFileId?: string;
   driveViewLink?: string;
+  driveName?: string;
+  driveMimeType?: string;
+  driveWebViewLink?: string;
+  driveParentFolderId?: string;
+  attachmentProvider?: AttachmentProvider;
+  attachmentStatus?: AttachmentStatus;
   syncStatus?: SyncStatus;
   fileSize?: string;
 }
@@ -119,6 +129,14 @@ export interface CreateEvidenceData {
   fileUrl?: string;
   content?: string;
   file?: File;
+  // Drive fields
+  driveFileId?: string;
+  driveName?: string;
+  driveMimeType?: string;
+  driveWebViewLink?: string;
+  driveParentFolderId?: string;
+  attachmentProvider?: AttachmentProvider;
+  attachmentStatus?: AttachmentStatus;
 }
 
 export interface CategorizationResult {

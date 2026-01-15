@@ -488,6 +488,7 @@ function App() {
         <EvidenceModal
           indicatorId={selectedIndicatorId}
           indicator={activeIndicators.find(i => i.id === selectedIndicatorId) || null}
+          projectName={activeProject?.name}
           onClose={() => {
             setShowEvidenceModal(false);
             setSelectedIndicatorId(null);

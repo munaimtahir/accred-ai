@@ -304,10 +304,32 @@ class EvidenceViewSet(viewsets.ModelViewSet):
             # Log file upload
             logger.info(f"User {request.user.username} uploaded file: {file_name} ({file_size} bytes)")
         
+        # Validate Drive fields: if drive_file_id provided, set attachment_status="linked"
+        if data.get('drive_file_id'):
+            data['attachment_status'] = 'linked'
+            if not data.get('attachment_provider'):
+                data['attachment_provider'] = 'gdrive'
+        
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    def update(self, request, *args, **kwargs):
+        """Update evidence - handles Drive field validation"""
+        instance = self.get_object()
+        data = request.data.copy()
+        
+        # Validate Drive fields: if drive_file_id provided, set attachment_status="linked"
+        if data.get('drive_file_id'):
+            data['attachment_status'] = 'linked'
+            if not data.get('attachment_provider'):
+                data['attachment_provider'] = 'gdrive'
+        
+        serializer = self.get_serializer(instance, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
 
 
 # AI Service Endpoints

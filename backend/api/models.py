@@ -73,6 +73,16 @@ class SyncStatus(models.TextChoices):
     ERROR = 'error', 'Error'
 
 
+class AttachmentProvider(models.TextChoices):
+    NONE = 'none', 'None'
+    GDRIVE = 'gdrive', 'Google Drive'
+
+
+class AttachmentStatus(models.TextChoices):
+    PENDING = 'pending', 'Pending'
+    LINKED = 'linked', 'Linked'
+
+
 class Project(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
@@ -164,8 +174,25 @@ class Evidence(models.Model):
     file_name = models.CharField(max_length=255, blank=True, null=True)
     file_url = models.CharField(max_length=500, blank=True, null=True)
     content = models.TextField(blank=True, null=True)
-    drive_file_id = models.CharField(max_length=255, blank=True, null=True)
+    drive_file_id = models.CharField(max_length=255, blank=True, null=True, db_index=True)
     drive_view_link = models.CharField(max_length=500, blank=True, null=True)
+    # New Drive fields for Phase 4
+    drive_name = models.CharField(max_length=255, blank=True, null=True)
+    drive_mime_type = models.CharField(max_length=100, blank=True, null=True)
+    drive_web_view_link = models.CharField(max_length=500, blank=True, null=True)
+    drive_parent_folder_id = models.CharField(max_length=255, blank=True, null=True)
+    attachment_provider = models.CharField(
+        max_length=20,
+        choices=AttachmentProvider.choices,
+        default=AttachmentProvider.NONE,
+        blank=True
+    )
+    attachment_status = models.CharField(
+        max_length=20,
+        choices=AttachmentStatus.choices,
+        blank=True,
+        null=True
+    )
     sync_status = models.CharField(
         max_length=20, 
         choices=SyncStatus.choices, 
@@ -179,6 +206,7 @@ class Evidence(models.Model):
         indexes = [
             models.Index(fields=['indicator']),
             models.Index(fields=['type']),
+            models.Index(fields=['drive_file_id']),
         ]
 
     def __str__(self):

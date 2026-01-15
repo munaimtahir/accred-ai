@@ -11,7 +11,8 @@ import {
   Trash2,
   ExternalLink,
   Calendar,
-  Search
+  Search,
+  Cloud
 } from 'lucide-react';
 import { Indicator, Evidence, EvidenceType } from '../types';
 
@@ -262,7 +263,19 @@ export default function DocumentLibrary({
                   
                   {/* Actions */}
                   <div className="flex items-center gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {evidence.fileUrl && (
+                    {(evidence.driveWebViewLink || evidence.driveViewLink) && evidence.attachmentStatus !== 'pending' && (
+                      <a
+                        href={evidence.driveWebViewLink || evidence.driveViewLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-2 py-1 text-xs text-indigo-600 hover:bg-indigo-50 rounded"
+                        title="Open in Drive"
+                      >
+                        <Cloud size={12} />
+                        Open in Drive
+                      </a>
+                    )}
+                    {evidence.fileUrl && evidence.attachmentProvider !== 'gdrive' && (
                       <a
                         href={evidence.fileUrl}
                         target="_blank"

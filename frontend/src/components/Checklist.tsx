@@ -10,7 +10,9 @@ import {
   Filter,
   Search,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Cloud,
+  Clock
 } from 'lucide-react';
 import { Indicator, ComplianceStatus, Evidence } from '../types';
 
@@ -519,22 +521,46 @@ function EvidenceItem({ evidence, onDelete }: EvidenceItemProps) {
     }
   };
 
+  const driveLink = evidence.driveWebViewLink || evidence.driveViewLink;
+  const isDriveLinked = evidence.attachmentProvider === 'gdrive' && evidence.driveFileId;
+  const isPending = evidence.attachmentStatus === 'pending';
+
   return (
     <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-lg group">
       <div className="w-8 h-8 bg-white rounded flex items-center justify-center text-slate-400">
-        {getTypeIcon()}
+        {isDriveLinked ? <Cloud size={14} /> : getTypeIcon()}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-slate-700 truncate">
-          {evidence.fileName || evidence.type}
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-slate-700 truncate">
+            {evidence.driveName || evidence.fileName || evidence.type}
+          </p>
+          {isPending && (
+            <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+              <Clock size={12} />
+              Pending
+            </span>
+          )}
+        </div>
         <p className="text-xs text-slate-500">
           {new Date(evidence.dateUploaded).toLocaleDateString()}
           {evidence.fileSize && ` • ${evidence.fileSize}`}
+          {isDriveLinked && !isPending && ' • Google Drive'}
         </p>
       </div>
       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        {evidence.fileUrl && (
+        {driveLink && !isPending && (
+          <a
+            href={driveLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 text-slate-400 hover:text-indigo-600"
+            title="Open in Drive"
+          >
+            <Cloud size={14} />
+          </a>
+        )}
+        {evidence.fileUrl && !isDriveLinked && (
           <a
             href={evidence.fileUrl}
             target="_blank"

@@ -443,6 +443,7 @@ export const api = {
         if (data.fileName) formData.append('fileName', data.fileName);
         body = formData;
       } else {
+        // For Drive attachments or other non-file evidence, send as JSON
         body = JSON.stringify(data);
         headers['Content-Type'] = 'application/json';
       }
