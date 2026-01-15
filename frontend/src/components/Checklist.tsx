@@ -16,7 +16,7 @@ import {
   AlertCircle,
   Paperclip
 } from 'lucide-react';
-import { Indicator, ComplianceStatus, Evidence } from '../types';
+import { Indicator, ComplianceStatus, Evidence, EvidenceState, IndicatorEvidenceType } from '../types';
 import { hasUnsyncedUpdate, getQueuedUpdate } from '../services/updateQueue';
 import { getIsServerReachable } from '../services/connectivity';
 
@@ -29,7 +29,8 @@ interface ChecklistProps {
   isOfflineFallback?: boolean;
 }
 
-type TabType = 'all' | 'action' | 'aiReview' | 'aiAssisted' | 'compliant' | 'frequency';
+type TabType = 'all' | 'action' | 'aiReview' | 'aiAssisted' | 'compliant' | 'frequency' 
+  | 'noEvidence' | 'evidencePending' | 'evidenceComplete' | 'textEvidence' | 'fileEvidence' | 'frequencyEvidence';
 
 const TABS: { id: TabType; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -38,6 +39,12 @@ const TABS: { id: TabType; label: string }[] = [
   { id: 'aiAssisted', label: 'AI Assisted' },
   { id: 'compliant', label: 'Compliant' },
   { id: 'frequency', label: 'Frequency Log' },
+  { id: 'noEvidence', label: 'No Evidence' },
+  { id: 'evidencePending', label: 'Evidence Pending' },
+  { id: 'evidenceComplete', label: 'Evidence Complete' },
+  { id: 'textEvidence', label: 'Text Evidence' },
+  { id: 'fileEvidence', label: 'File Evidence' },
+  { id: 'frequencyEvidence', label: 'Frequency Evidence' },
 ];
 
 const STATUS_OPTIONS: ComplianceStatus[] = [
@@ -94,6 +101,33 @@ export default function Checklist({
         break;
       case 'frequency':
         filtered = filtered.filter(i => i.frequency && i.frequency !== 'One-time');
+        break;
+      // Phase 6: Evidence-centric filters
+      case 'noEvidence':
+        filtered = filtered.filter(i => 
+          i.evidenceState === 'no_evidence' || (!i.evidenceState && (!i.evidence || i.evidence.length === 0))
+        );
+        break;
+      case 'evidencePending':
+        filtered = filtered.filter(i => 
+          i.evidenceState === 'partial_evidence' || 
+          i.evidenceState === 'review_pending' ||
+          i.evidenceState === 'rejected'
+        );
+        break;
+      case 'evidenceComplete':
+        filtered = filtered.filter(i => 
+          i.evidenceState === 'accepted' || i.evidenceState === 'evidence_complete'
+        );
+        break;
+      case 'textEvidence':
+        filtered = filtered.filter(i => i.evidenceType === 'text');
+        break;
+      case 'fileEvidence':
+        filtered = filtered.filter(i => i.evidenceType === 'file');
+        break;
+      case 'frequencyEvidence':
+        filtered = filtered.filter(i => i.evidenceType === 'frequency');
         break;
     }
 
@@ -330,10 +364,47 @@ function IndicatorCard({
     ? (hasUnsynced ? 'unsynced' : 'synced')
     : 'synced';
   
-  // Check evidence state
+  // Phase 6: Check evidence state and completeness
   const evidenceCount = indicator.evidence?.length || 0;
+  const evidenceState: EvidenceState = indicator.evidenceState || 
+    (evidenceCount === 0 ? 'no_evidence' : 'partial_evidence');
   const isCompleted = ['Compliant', 'Completed', 'Done'].includes(indicator.status);
-  const needsEvidence = isCompleted && evidenceCount === 0 && isServerReachable;
+  
+  // Block completion if evidence incomplete (online only)
+  const canComplete = isOfflineFallback || !isServerReachable || 
+    evidenceState === 'accepted' || evidenceState === 'evidence_complete';
+  const evidenceBlocked = !isOfflineFallback && isServerReachable && !canComplete;
+  
+  // Get evidence type label
+  const getEvidenceTypeLabel = (type?: string) => {
+    switch (type) {
+      case 'text': return 'Text Evidence';
+      case 'file': return 'File Evidence';
+      case 'frequency': return 'Frequency Evidence';
+      default: return 'Evidence';
+    }
+  };
+  
+  // Get evidence state label and color
+  const getEvidenceStateInfo = (state: EvidenceState) => {
+    switch (state) {
+      case 'no_evidence':
+        return { label: 'No Evidence', color: 'text-red-600 bg-red-50' };
+      case 'partial_evidence':
+        return { label: 'Partial Evidence', color: 'text-amber-600 bg-amber-50' };
+      case 'review_pending':
+        return { label: 'Review Pending', color: 'text-amber-600 bg-amber-50' };
+      case 'rejected':
+        return { label: 'Evidence Rejected', color: 'text-red-600 bg-red-50' };
+      case 'accepted':
+      case 'evidence_complete':
+        return { label: 'Evidence Complete', color: 'text-green-600 bg-green-50' };
+      default:
+        return { label: 'Evidence Pending', color: 'text-slate-600 bg-slate-50' };
+    }
+  };
+  
+  const evidenceStateInfo = getEvidenceStateInfo(evidenceState);
   return (
     <div className={`bg-white rounded-xl border transition-all ${
       isSelected ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-slate-200'
@@ -370,17 +441,24 @@ function IndicatorCard({
                 Unsynced
               </span>
             )}
-            {/* Evidence State Badge */}
-            {evidenceCount > 0 && (
-              <span className="text-xs font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded flex items-center gap-1">
-                <Paperclip size={12} />
-                Evidence Linked
+            {/* Evidence Type Badge */}
+            {indicator.evidenceType && (
+              <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                {getEvidenceTypeLabel(indicator.evidenceType)}
               </span>
             )}
-            {needsEvidence && (
+            {/* Evidence State Badge */}
+            {evidenceState !== 'no_evidence' && (
+              <span className={`text-xs font-medium px-2 py-0.5 rounded flex items-center gap-1 ${evidenceStateInfo.color}`}>
+                <Paperclip size={12} />
+                {evidenceStateInfo.label}
+              </span>
+            )}
+            {/* Evidence Blocked Badge (online only) */}
+            {evidenceBlocked && (
               <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded flex items-center gap-1">
                 <AlertCircle size={12} />
-                Evidence Pending
+                Evidence Required
               </span>
             )}
           </div>
@@ -414,14 +492,35 @@ function IndicatorCard({
               </label>
               <select
                 value={indicator.status}
-                onChange={(e) => onUpdateIndicator(indicator.id, { 
-                  status: e.target.value as ComplianceStatus,
-                  lastUpdated: new Date().toISOString()
-                })}
-                className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                onChange={(e) => {
+                  const newStatus = e.target.value as ComplianceStatus;
+                  // Block completion status if evidence is incomplete (online only)
+                  if (!isOfflineFallback && isServerReachable) {
+                    const completionStatuses: ComplianceStatus[] = ['Compliant'];
+                    if (completionStatuses.includes(newStatus) && !canComplete) {
+                      // Status change blocked - show warning
+                      return;
+                    }
+                  }
+                  onUpdateIndicator(indicator.id, { 
+                    status: newStatus,
+                    lastUpdated: new Date().toISOString()
+                  });
+                }}
+                className={`mt-1 w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                  evidenceBlocked && ['Compliant'].includes(indicator.status)
+                    ? 'border-red-300 bg-red-50'
+                    : 'border-slate-200'
+                }`}
               >
                 {STATUS_OPTIONS.map(status => (
-                  <option key={status} value={status}>{status}</option>
+                  <option 
+                    key={status} 
+                    value={status}
+                    disabled={evidenceBlocked && status === 'Compliant'}
+                  >
+                    {status}
+                  </option>
                 ))}
               </select>
             </div>
@@ -466,15 +565,68 @@ function IndicatorCard({
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
                 Evidence ({indicator.evidence.length})
+                {indicator.evidenceType && (
+                  <span className="ml-2 text-xs text-slate-400 normal-case">
+                    ({getEvidenceTypeLabel(indicator.evidenceType)})
+                  </span>
+                )}
               </label>
               <button
                 onClick={() => onAddEvidence(indicator.id)}
                 className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700"
+                disabled={isOfflineFallback}
               >
                 <Plus size={14} />
                 Add Evidence
               </button>
             </div>
+            
+            {/* Phase 6: Evidence Completeness Warning */}
+            {evidenceBlocked && (
+              <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle size={16} className="text-red-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-900">
+                      Evidence Required
+                    </p>
+                    <p className="text-xs text-red-700 mt-1">
+                      {evidenceState === 'no_evidence' 
+                        ? 'This indicator requires evidence before it can be completed.'
+                        : evidenceState === 'rejected'
+                        ? 'Evidence has been rejected. Please add new evidence before completing.'
+                        : 'Evidence is incomplete or pending review. Please ensure all evidence is accepted.'}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {indicator.evidenceType === 'text' && (
+                        <button
+                          onClick={() => onAddEvidence(indicator.id)}
+                          className="text-xs px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                        >
+                          Add Text Evidence
+                        </button>
+                      )}
+                      {indicator.evidenceType === 'file' && (
+                        <button
+                          onClick={() => onAddEvidence(indicator.id)}
+                          className="text-xs px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                        >
+                          Attach Cloud Evidence
+                        </button>
+                      )}
+                      {indicator.evidenceType === 'frequency' && (
+                        <button
+                          onClick={() => onAddEvidence(indicator.id)}
+                          className="text-xs px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                        >
+                          Add Frequency Record
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             
             {indicator.evidence.length > 0 ? (
               <div className="space-y-2">
@@ -511,7 +663,13 @@ function IndicatorCard({
           <div className="flex items-center gap-3 pt-2">
             <button
               onClick={() => onQuickLog(indicator.id)}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors"
+              disabled={evidenceBlocked}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors ${
+                evidenceBlocked
+                  ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+              title={evidenceBlocked ? 'Evidence is required before this indicator can be completed.' : 'Mark as Compliant'}
             >
               <Check size={16} />
               Mark Compliant
@@ -565,6 +723,41 @@ function EvidenceItem({ evidence, onDelete }: EvidenceItemProps) {
   const driveLink = evidence.driveWebViewLink || evidence.driveViewLink;
   const isDriveLinked = evidence.attachmentProvider === 'gdrive' && evidence.driveFileId;
   const isPending = evidence.attachmentStatus === 'pending';
+  
+  // Phase 6: Review state display
+  const reviewState = evidence.reviewState || 'draft';
+  const getReviewStateBadge = () => {
+    switch (reviewState) {
+      case 'accepted':
+        return (
+          <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">
+            <Check size={12} />
+            Accepted
+          </span>
+        );
+      case 'rejected':
+        return (
+          <span className="flex items-center gap-1 text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded">
+            <X size={12} />
+            Rejected
+          </span>
+        );
+      case 'under_review':
+        return (
+          <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+            <Clock size={12} />
+            Under Review
+          </span>
+        );
+      case 'draft':
+      default:
+        return (
+          <span className="flex items-center gap-1 text-xs text-slate-600 bg-slate-50 px-2 py-0.5 rounded">
+            Draft
+          </span>
+        );
+    }
+  };
 
   return (
     <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-lg group">
@@ -572,7 +765,7 @@ function EvidenceItem({ evidence, onDelete }: EvidenceItemProps) {
         {isDriveLinked ? <Cloud size={14} /> : getTypeIcon()}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <p className="text-sm font-medium text-slate-700 truncate">
             {evidence.driveName || evidence.fileName || evidence.type}
           </p>
@@ -582,12 +775,19 @@ function EvidenceItem({ evidence, onDelete }: EvidenceItemProps) {
               Pending
             </span>
           )}
+          {getReviewStateBadge()}
         </div>
         <p className="text-xs text-slate-500">
           {new Date(evidence.dateUploaded).toLocaleDateString()}
           {evidence.fileSize && ` • ${evidence.fileSize}`}
           {isDriveLinked && !isPending && ' • Google Drive'}
+          {evidence.reviewedByName && ` • Reviewed by ${evidence.reviewedByName}`}
         </p>
+        {reviewState === 'rejected' && evidence.reviewReason && (
+          <p className="text-xs text-red-600 mt-1 italic">
+            Reason: {evidence.reviewReason}
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
         {driveLink && !isPending && (

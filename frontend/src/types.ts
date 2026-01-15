@@ -21,6 +21,25 @@ export type EvidenceType =
   | 'note' 
   | 'link';
 
+export type IndicatorEvidenceType = 
+  | 'text' 
+  | 'file' 
+  | 'frequency';
+
+export type EvidenceReviewState = 
+  | 'draft' 
+  | 'under_review' 
+  | 'accepted' 
+  | 'rejected';
+
+export type EvidenceState = 
+  | 'no_evidence' 
+  | 'partial_evidence' 
+  | 'evidence_complete' 
+  | 'review_pending' 
+  | 'accepted' 
+  | 'rejected';
+
 export type AICategorization = 
   | 'ai_fully_manageable' 
   | 'ai_assisted' 
@@ -71,6 +90,12 @@ export interface Evidence {
   attachmentStatus?: AttachmentStatus;
   syncStatus?: SyncStatus;
   fileSize?: string;
+  // Phase 6: Review workflow fields
+  reviewState?: EvidenceReviewState;
+  reviewReason?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewedByName?: string;
 }
 
 export interface AIAnalysis {
@@ -97,6 +122,9 @@ export interface Indicator {
   aiCategorization?: AICategorization;
   isAICompleted?: boolean;
   isHumanVerified?: boolean;
+  // Phase 6: Evidence type and state
+  evidenceType?: IndicatorEvidenceType;
+  evidenceState?: EvidenceState;
 }
 
 export interface DriveConfig {

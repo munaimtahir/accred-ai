@@ -21,7 +21,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 logger = logging.getLogger(__name__)
 
-from .models import Project, Indicator, Evidence, ComplianceStatus, UserProfile
+from .models import Project, Indicator, Evidence, ComplianceStatus, UserProfile, EvidenceReviewState
+from django.utils import timezone as django_timezone
 from .serializers import (
     ProjectSerializer, ProjectCreateSerializer,
     IndicatorSerializer, EvidenceSerializer,
@@ -188,8 +189,26 @@ class IndicatorViewSet(viewsets.ModelViewSet):
         return queryset.none()
     
     def partial_update(self, request, *args, **kwargs):
-        """Partially update an indicator"""
+        """Partially update an indicator with evidence completion checking"""
         instance = self.get_object()
+        
+        # Check if status is being changed to a completion state
+        new_status = request.data.get('status')
+        completion_statuses = [ComplianceStatus.COMPLIANT]
+        
+        if new_status in completion_statuses:
+            # Check evidence completeness (online only - offline unchanged)
+            can_complete, reason = instance.can_be_completed()
+            if not can_complete:
+                return Response(
+                    {
+                        'error': 'Cannot complete indicator',
+                        'message': reason or 'This indicator requires evidence before it can be completed.',
+                        'evidence_state': instance.get_evidence_state()
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -197,8 +216,21 @@ class IndicatorViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def quick_log(self, request, pk=None):
-        """Quick log action - sets status to Compliant and updates timestamp"""
+        """Quick log action - sets status to Compliant with evidence validation"""
         indicator = self.get_object()
+        
+        # Check evidence completeness (online only - offline unchanged)
+        can_complete, reason = indicator.can_be_completed()
+        if not can_complete:
+            return Response(
+                {
+                    'error': 'Cannot complete indicator',
+                    'message': reason or 'This indicator requires evidence before it can be completed.',
+                    'evidence_state': indicator.get_evidence_state()
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         indicator.status = ComplianceStatus.COMPLIANT
         indicator.last_updated = timezone.now()
         indicator.save()
@@ -330,6 +362,44 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def review(self, request, pk=None):
+        """Review evidence - accept or reject"""
+        evidence = self.get_object()
+        review_action = request.data.get('action')  # 'accept' or 'reject'
+        review_reason = request.data.get('reason', '')
+        
+        if review_action == 'accept':
+            evidence.review_state = EvidenceReviewState.ACCEPTED
+            evidence.review_reason = None
+            evidence.reviewed_by = request.user
+            evidence.reviewed_at = django_timezone.now()
+            evidence.save()
+            
+            serializer = self.get_serializer(evidence)
+            return Response(serializer.data)
+        
+        elif review_action == 'reject':
+            if not review_reason:
+                return Response(
+                    {'error': 'Rejection reason is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            evidence.review_state = EvidenceReviewState.REJECTED
+            evidence.review_reason = review_reason
+            evidence.reviewed_by = request.user
+            evidence.reviewed_at = django_timezone.now()
+            evidence.save()
+            
+            serializer = self.get_serializer(evidence)
+            return Response(serializer.data)
+        
+        else:
+            return Response(
+                {'error': 'Invalid action. Use "accept" or "reject"'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 # AI Service Endpoints

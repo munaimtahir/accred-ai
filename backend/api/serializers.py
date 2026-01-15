@@ -54,6 +54,8 @@ class CamelCaseModelSerializer(serializers.ModelSerializer):
 
 
 class EvidenceSerializer(CamelCaseModelSerializer):
+    reviewed_by_name = serializers.SerializerMethodField()
+    
     class Meta:
         model = Evidence
         fields = [
@@ -61,9 +63,16 @@ class EvidenceSerializer(CamelCaseModelSerializer):
             'file_url', 'content', 'drive_file_id', 'drive_view_link', 
             'drive_name', 'drive_mime_type', 'drive_web_view_link',
             'drive_parent_folder_id', 'attachment_provider', 'attachment_status',
-            'sync_status', 'file_size'
+            'sync_status', 'file_size', 'review_state', 'review_reason',
+            'reviewed_by', 'reviewed_at', 'reviewed_by_name'
         ]
-        read_only_fields = ['id', 'date_uploaded']
+        read_only_fields = ['id', 'date_uploaded', 'reviewed_by', 'reviewed_at']
+    
+    def get_reviewed_by_name(self, obj):
+        """Get reviewer username"""
+        if obj.reviewed_by:
+            return obj.reviewed_by.username
+        return None
     
     def to_internal_value(self, data):
         """Handle indicator field specially since it's a foreign key"""
@@ -79,6 +88,7 @@ class EvidenceSerializer(CamelCaseModelSerializer):
 
 class IndicatorSerializer(CamelCaseModelSerializer):
     evidence = EvidenceSerializer(many=True, read_only=True)
+    evidence_state = serializers.SerializerMethodField()
     
     class Meta:
         model = Indicator
@@ -87,9 +97,13 @@ class IndicatorSerializer(CamelCaseModelSerializer):
             'description', 'score', 'responsible_person', 'frequency', 
             'assignee', 'status', 'notes', 'last_updated', 'form_schema',
             'ai_analysis', 'ai_categorization', 'is_ai_completed', 
-            'is_human_verified', 'evidence'
+            'is_human_verified', 'evidence', 'evidence_type', 'evidence_state'
         ]
-        read_only_fields = ['id', 'evidence']
+        read_only_fields = ['id', 'evidence', 'evidence_state']
+    
+    def get_evidence_state(self, obj):
+        """Get computed evidence state"""
+        return obj.get_evidence_state()
     
     def to_internal_value(self, data):
         """Handle project field specially since it's a foreign key"""
@@ -111,7 +125,8 @@ class IndicatorCreateSerializer(CamelCaseModelSerializer):
             'section', 'standard', 'indicator', 'description', 
             'score', 'responsible_person', 'frequency', 'assignee', 
             'status', 'notes', 'form_schema', 'ai_analysis', 
-            'ai_categorization', 'is_ai_completed', 'is_human_verified'
+            'ai_categorization', 'is_ai_completed', 'is_human_verified',
+            'evidence_type'
         ]
 
 

@@ -83,6 +83,31 @@ class AttachmentStatus(models.TextChoices):
     LINKED = 'linked', 'Linked'
 
 
+class IndicatorEvidenceType(models.TextChoices):
+    """Evidence model types for indicators"""
+    TEXT = 'text', 'Text-Based Evidence'
+    FILE = 'file', 'File-Based Evidence'
+    FREQUENCY = 'frequency', 'Frequency-Based Evidence'
+
+
+class EvidenceReviewState(models.TextChoices):
+    """Review states for evidence"""
+    DRAFT = 'draft', 'Draft'
+    UNDER_REVIEW = 'under_review', 'Under Review'
+    ACCEPTED = 'accepted', 'Accepted'
+    REJECTED = 'rejected', 'Rejected'
+
+
+class EvidenceState(models.TextChoices):
+    """Computed evidence completeness states"""
+    NO_EVIDENCE = 'no_evidence', 'No Evidence'
+    PARTIAL_EVIDENCE = 'partial_evidence', 'Partial Evidence'
+    EVIDENCE_COMPLETE = 'evidence_complete', 'Evidence Complete'
+    REVIEW_PENDING = 'review_pending', 'Review Pending'
+    ACCEPTED = 'accepted', 'Accepted'
+    REJECTED = 'rejected', 'Rejected'
+
+
 class Project(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
@@ -148,6 +173,13 @@ class Indicator(models.Model):
     )
     is_ai_completed = models.BooleanField(default=False)
     is_human_verified = models.BooleanField(default=False)
+    # Phase 6: Evidence type classification
+    evidence_type = models.CharField(
+        max_length=20,
+        choices=IndicatorEvidenceType.choices,
+        default=IndicatorEvidenceType.TEXT,
+        help_text='Evidence model type for this indicator'
+    )
 
     class Meta:
         ordering = ['section', 'standard']
@@ -160,6 +192,85 @@ class Indicator(models.Model):
 
     def __str__(self):
         return f"{self.standard}: {self.indicator}"
+    
+    def get_evidence_state(self):
+        """
+        Compute evidence completeness state for this indicator.
+        Returns one of: no_evidence, partial_evidence, evidence_complete, review_pending, accepted, rejected
+        """
+        all_evidence = self.evidence.all()
+        
+        if not all_evidence.exists():
+            return EvidenceState.NO_EVIDENCE
+        
+        # Check for rejected evidence first (takes precedence)
+        if all_evidence.filter(review_state=EvidenceReviewState.REJECTED).exists():
+            return EvidenceState.REJECTED
+        
+        # Check for pending review
+        if all_evidence.filter(review_state__in=[EvidenceReviewState.DRAFT, EvidenceReviewState.UNDER_REVIEW]).exists():
+            # If we have accepted evidence, it's still review_pending (mixed state)
+            if all_evidence.filter(review_state=EvidenceReviewState.ACCEPTED).exists():
+                return EvidenceState.REVIEW_PENDING
+            return EvidenceState.REVIEW_PENDING
+        
+        # Check for accepted evidence
+        accepted_evidence = all_evidence.filter(review_state=EvidenceReviewState.ACCEPTED)
+        if accepted_evidence.exists():
+            # Validate completeness based on evidence_type
+            if self.evidence_type == IndicatorEvidenceType.TEXT:
+                # Text-based: need at least one non-empty text evidence
+                text_evidence = accepted_evidence.filter(
+                    type__in=['note', 'document']
+                ).exclude(content='').exclude(content__isnull=True)
+                if text_evidence.exists():
+                    return EvidenceState.ACCEPTED
+                return EvidenceState.PARTIAL_EVIDENCE
+            
+            elif self.evidence_type == IndicatorEvidenceType.FILE:
+                # File-based: need at least one linked file (Drive or uploaded)
+                file_evidence = accepted_evidence.filter(
+                    models.Q(drive_file_id__isnull=False) | models.Q(file_url__isnull=False)
+                ).exclude(drive_file_id='').exclude(file_url='')
+                if file_evidence.exists():
+                    return EvidenceState.ACCEPTED
+                return EvidenceState.PARTIAL_EVIDENCE
+            
+            elif self.evidence_type == IndicatorEvidenceType.FREQUENCY:
+                # Frequency-based: need evidence for current cycle
+                # For now, any accepted evidence is sufficient
+                # TODO: Add cycle-specific checking when frequency tracking is enhanced
+                if accepted_evidence.exists():
+                    return EvidenceState.ACCEPTED
+                return EvidenceState.PARTIAL_EVIDENCE
+        
+        # Has evidence but not accepted
+        return EvidenceState.PARTIAL_EVIDENCE
+    
+    def can_be_completed(self):
+        """
+        Check if indicator can be marked as Completed/Compliant.
+        Returns (can_complete: bool, reason: str)
+        """
+        evidence_state = self.get_evidence_state()
+        
+        # In offline mode, allow completion (offline logic unchanged)
+        # This check is performed in views where we have request context
+        
+        if evidence_state == EvidenceState.NO_EVIDENCE:
+            return False, "This indicator requires evidence before it can be completed."
+        
+        if evidence_state == EvidenceState.REJECTED:
+            return False, "Evidence has been rejected. Please add new evidence before completing."
+        
+        if evidence_state in [EvidenceState.PARTIAL_EVIDENCE, EvidenceState.REVIEW_PENDING]:
+            return False, "Evidence is incomplete or pending review. Please ensure all evidence is accepted."
+        
+        if evidence_state == EvidenceState.ACCEPTED:
+            return True, None
+        
+        # Default: not complete
+        return False, "Evidence is incomplete."
 
 
 class Evidence(models.Model):
@@ -200,6 +311,31 @@ class Evidence(models.Model):
         null=True
     )
     file_size = models.CharField(max_length=50, blank=True, null=True)
+    # Phase 6: Review workflow fields
+    review_state = models.CharField(
+        max_length=20,
+        choices=EvidenceReviewState.choices,
+        default=EvidenceReviewState.DRAFT,
+        help_text='Current review state of this evidence'
+    )
+    review_reason = models.TextField(
+        blank=True,
+        null=True,
+        help_text='Reason for rejection (if rejected)'
+    )
+    reviewed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name='reviewed_evidence',
+        null=True,
+        blank=True,
+        help_text='User who reviewed this evidence'
+    )
+    reviewed_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text='Timestamp when evidence was reviewed'
+    )
 
     class Meta:
         ordering = ['-date_uploaded']
@@ -207,6 +343,7 @@ class Evidence(models.Model):
             models.Index(fields=['indicator']),
             models.Index(fields=['type']),
             models.Index(fields=['drive_file_id']),
+            models.Index(fields=['review_state']),
         ]
 
     def __str__(self):

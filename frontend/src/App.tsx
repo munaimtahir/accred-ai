@@ -248,6 +248,17 @@ function App() {
   }, [projects, activeProjectId]);
 
   const handleUpdateIndicator = useCallback(async (id: string, data: Partial<Indicator>) => {
+    // Phase 6: Don't do optimistic update if we're trying to complete without evidence
+    // The UI should already block this, but we check here too for safety
+    if (!isOfflineFallbackActive && data.status === 'Compliant') {
+      const indicator = projects.flatMap(p => p.indicators).find(i => i.id === id);
+      if (indicator && indicator.evidenceState && 
+          !['accepted', 'evidence_complete'].includes(indicator.evidenceState)) {
+        // Evidence incomplete - don't update, error will be shown by UI
+        return;
+      }
+    }
+    
     // Optimistic update
     setProjects(prev => prev.map(p => ({
       ...p,
@@ -270,19 +281,45 @@ function App() {
         }));
         cacheOnlineSnapshot(updatedProjects);
       }
-    } catch (err) {
+    } catch (err: any) {
       // If server becomes unreachable during update, queue it
       if (isAuthenticated && !isServerReachable) {
         queueIndicatorUpdate(id, data);
         return;
       }
+      
+      // Phase 6: Handle evidence completion errors
+      // The backend returns errors like: { error: 'Cannot complete indicator', message: '...' }
+      // apiRequest extracts the message, so we check the error message
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (errorMessage.includes('requires evidence') || errorMessage.includes('Evidence') || 
+          errorMessage.includes('Cannot complete indicator')) {
+        // Rollback on error
+        await loadProjects();
+        setError(errorMessage);
+        return;
+      }
+      
       // Rollback on error
       await loadProjects();
-      setError(err instanceof Error ? err.message : 'Failed to update indicator');
+      setError(errorMessage || 'Failed to update indicator');
     }
   }, [isOfflineFallbackActive, isAuthenticated, isServerReachable, projects]);
 
   const handleQuickLog = useCallback(async (id: string) => {
+    // Phase 6: Check evidence before attempting quick log (online only)
+    if (!isOfflineFallbackActive) {
+      const indicator = projects.flatMap(p => p.indicators).find(i => i.id === id);
+      if (indicator && indicator.evidenceState && 
+          !['accepted', 'evidence_complete'].includes(indicator.evidenceState)) {
+        // Evidence incomplete - don't update, error will be shown by UI
+        setError(indicator.evidenceState === 'no_evidence'
+          ? 'This indicator requires evidence before it can be completed.'
+          : 'Evidence is incomplete or pending review. Please ensure all evidence is accepted.');
+        return;
+      }
+    }
+    
     // Optimistic update
     setProjects(prev => prev.map(p => ({
       ...p,
@@ -295,11 +332,25 @@ function App() {
     
     try {
       await api.quickLogIndicator(id);
-    } catch (err) {
+      // Reload to get updated evidence state
       await loadProjects();
-      setError(err instanceof Error ? err.message : 'Failed to log indicator');
+    } catch (err: any) {
+      // Rollback on error
+      await loadProjects();
+      
+      // Phase 6: Handle evidence completion errors
+      // The backend returns errors like: { error: 'Cannot complete indicator', message: '...' }
+      // apiRequest extracts the message, so we check the error message
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (errorMessage.includes('requires evidence') || errorMessage.includes('Evidence') || 
+          errorMessage.includes('Cannot complete indicator')) {
+        setError(errorMessage);
+        return;
+      }
+      
+      setError(errorMessage || 'Failed to log indicator');
     }
-  }, []);
+  }, [isOfflineFallbackActive, projects]);
 
   const handleAddEvidence = useCallback(async (data: CreateEvidenceData) => {
     try {

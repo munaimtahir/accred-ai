@@ -189,10 +189,10 @@ async function apiRequest<T>(
           // Refresh failed or token still invalid, clear tokens
           clearTokens();
           const error = await retryResponse.json().catch(() => ({ error: 'Authentication failed' }));
-          throw new Error(error.error || error.message || 'Authentication required');
+          throw new Error(error.message || error.error || 'Authentication required');
         }
         const error = await retryResponse.json().catch(() => ({ error: 'Request failed' }));
-        throw new Error(error.error || error.message || `HTTP ${retryResponse.status}`);
+        throw new Error(error.message || error.error || `HTTP ${retryResponse.status}`);
       }
       
       const text = await retryResponse.text();
@@ -201,13 +201,15 @@ async function apiRequest<T>(
       // Refresh failed, clear tokens and throw authentication error
       clearTokens();
       const error = await response.json().catch(() => ({ error: 'Authentication required' }));
-      throw new Error(error.error || error.message || 'Authentication required');
+      throw new Error(error.message || error.error || 'Authentication required');
     }
   }
   
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(error.error || error.message || `HTTP ${response.status}`);
+    // Phase 6: Prioritize message field over error field for better user feedback
+    const errorMessage = error.message || error.error || `HTTP ${response.status}`;
+    throw new Error(errorMessage);
   }
   
   // Handle empty responses
@@ -502,6 +504,23 @@ export const api = {
       }
       // If authenticated, throw error (no localStorage fallback)
       throw createNetworkError('Deleting evidence', error);
+    }
+  },
+
+  // Phase 6: Review evidence
+  async reviewEvidence(id: string, action: 'accept' | 'reject', reason?: string): Promise<Evidence> {
+    // Block review in offline mode (online-only feature)
+    if (shouldFallbackToLocalStorage()) {
+      throw new Error('Evidence review requires sign-in and online connection');
+    }
+    
+    try {
+      return await apiRequest<Evidence>(`/evidence/${id}/review/`, {
+        method: 'POST',
+        body: JSON.stringify({ action, reason }),
+      });
+    } catch (error) {
+      throw createNetworkError('Reviewing evidence', error);
     }
   },
 
