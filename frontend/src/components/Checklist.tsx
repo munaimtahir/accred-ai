@@ -12,9 +12,13 @@ import {
   Trash2,
   ExternalLink,
   Cloud,
-  Clock
+  Clock,
+  AlertCircle,
+  Paperclip
 } from 'lucide-react';
 import { Indicator, ComplianceStatus, Evidence } from '../types';
+import { hasUnsyncedUpdate, getQueuedUpdate } from '../services/updateQueue';
+import { getIsServerReachable } from '../services/connectivity';
 
 interface ChecklistProps {
   indicators: Indicator[];
@@ -22,6 +26,7 @@ interface ChecklistProps {
   onQuickLog: (id: string) => void;
   onAddEvidence: (indicatorId: string) => void;
   onDeleteEvidence: (evidenceId: string) => void;
+  isOfflineFallback?: boolean;
 }
 
 type TabType = 'all' | 'action' | 'aiReview' | 'aiAssisted' | 'compliant' | 'frequency';
@@ -49,6 +54,7 @@ export default function Checklist({
   onQuickLog,
   onAddEvidence,
   onDeleteEvidence,
+  isOfflineFallback = false,
 }: ChecklistProps) {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -280,6 +286,7 @@ export default function Checklist({
               onAddEvidence={onAddEvidence}
               onDeleteEvidence={onDeleteEvidence}
               getStatusColor={getStatusColor}
+              isOfflineFallback={isOfflineFallback}
             />
           ))
         )}
@@ -299,6 +306,7 @@ interface IndicatorCardProps {
   onAddEvidence: (indicatorId: string) => void;
   onDeleteEvidence: (evidenceId: string) => void;
   getStatusColor: (status: ComplianceStatus) => string;
+  isOfflineFallback?: boolean;
 }
 
 function IndicatorCard({
@@ -312,7 +320,20 @@ function IndicatorCard({
   onAddEvidence,
   onDeleteEvidence,
   getStatusColor,
+  isOfflineFallback = false,
 }: IndicatorCardProps) {
+  // Check sync state
+  const isServerReachable = getIsServerReachable();
+  const hasUnsynced = hasUnsyncedUpdate(indicator.id);
+  const queuedUpdate = getQueuedUpdate(indicator.id);
+  const syncState = isOfflineFallback || !isServerReachable
+    ? (hasUnsynced ? 'unsynced' : 'synced')
+    : 'synced';
+  
+  // Check evidence state
+  const evidenceCount = indicator.evidence?.length || 0;
+  const isCompleted = ['Compliant', 'Completed', 'Done'].includes(indicator.status);
+  const needsEvidence = isCompleted && evidenceCount === 0 && isServerReachable;
   return (
     <div className={`bg-white rounded-xl border transition-all ${
       isSelected ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-slate-200'
@@ -331,7 +352,7 @@ function IndicatorCard({
         </button>
         
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
               {indicator.standard}
             </span>
@@ -340,6 +361,26 @@ function IndicatorCard({
               <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded flex items-center gap-1">
                 <Bot size={12} />
                 AI Review
+              </span>
+            )}
+            {/* Sync State Badge */}
+            {syncState === 'unsynced' && (
+              <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded flex items-center gap-1">
+                <AlertCircle size={12} />
+                Unsynced
+              </span>
+            )}
+            {/* Evidence State Badge */}
+            {evidenceCount > 0 && (
+              <span className="text-xs font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded flex items-center gap-1">
+                <Paperclip size={12} />
+                Evidence Linked
+              </span>
+            )}
+            {needsEvidence && (
+              <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded flex items-center gap-1">
+                <AlertCircle size={12} />
+                Evidence Pending
               </span>
             )}
           </div>

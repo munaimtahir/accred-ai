@@ -4,6 +4,9 @@ import { api } from './services/api';
 import { useAuth } from './auth/AuthContext';
 import { getDataMode, DataMode } from './state/dataMode';
 import { shouldShowImportPrompt } from './offline/offlineStore';
+import { startConnectivityMonitoring, stopConnectivityMonitoring, onConnectivityChange, getIsServerReachable } from './services/connectivity';
+import { cacheOnlineSnapshot, getCachedProjects } from './services/offlineCache';
+import { queueIndicatorUpdate, getQueuedUpdateCount } from './services/updateQueue';
 import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import ProjectHub from './components/ProjectHub';
@@ -20,6 +23,7 @@ import EditProjectModal from './components/modals/EditProjectModal';
 import EvidenceModal from './components/modals/EvidenceModal';
 import DeleteConfirmationModal from './components/modals/DeleteConfirmationModal';
 import ImportOfflineDataModal from './components/modals/ImportOfflineDataModal';
+import SyncPanel from './components/SyncPanel';
 import LoadingSpinner from './components/LoadingSpinner';
 
 function App() {
@@ -52,6 +56,10 @@ function App() {
   // Track if we've checked for import prompt this session (prevent re-prompting)
   const hasCheckedImportRef = useRef(false);
   const previousAuthStateRef = useRef(isAuthenticated);
+  
+  // Offline fallback state
+  const [isServerReachable, setIsServerReachable] = useState(true);
+  const isOfflineFallbackActive = isAuthenticated && !isServerReachable;
 
   // Computed values
   const activeProject = useMemo(() => 
@@ -96,12 +104,38 @@ function App() {
     };
   }, [activeIndicators]);
 
+  // Connectivity monitoring
+  useEffect(() => {
+    if (isAuthenticated) {
+      startConnectivityMonitoring(isAuthenticated);
+      const unsubscribe = onConnectivityChange((reachable) => {
+        setIsServerReachable(reachable);
+      });
+      return () => {
+        unsubscribe();
+        stopConnectivityMonitoring();
+      };
+    } else {
+      stopConnectivityMonitoring();
+      setIsServerReachable(false);
+    }
+  }, [isAuthenticated]);
+
   // Load projects on mount (only when authenticated)
   useEffect(() => {
     if (isAuthenticated) {
-      loadProjects();
+      if (isServerReachable) {
+        loadProjects();
+      } else {
+        // Offline fallback: load from cache
+        const cachedProjects = getCachedProjects();
+        if (cachedProjects.length > 0) {
+          setProjects(cachedProjects);
+          setIsLoading(false);
+        }
+      }
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isServerReachable]);
 
   // Check for offline data import prompt when transitioning from unauthenticated to authenticated
   useEffect(() => {
@@ -132,7 +166,20 @@ function App() {
     try {
       const data = await api.getProjects();
       setProjects(data);
+      // Cache snapshot for offline fallback
+      if (isAuthenticated && isServerReachable) {
+        cacheOnlineSnapshot(data);
+      }
     } catch (err) {
+      // If authenticated but server unreachable, try cache
+      if (isAuthenticated && !isServerReachable) {
+        const cachedProjects = getCachedProjects();
+        if (cachedProjects.length > 0) {
+          setProjects(cachedProjects);
+          setIsLoading(false);
+          return;
+        }
+      }
       setError(err instanceof Error ? err.message : 'Failed to load projects');
       console.error('Failed to load projects:', err);
     } finally {
@@ -207,14 +254,33 @@ function App() {
       indicators: p.indicators.map(i => i.id === id ? { ...i, ...data } : i)
     })));
     
+    // If offline fallback active, queue the update instead of calling API
+    if (isOfflineFallbackActive) {
+      queueIndicatorUpdate(id, data);
+      return;
+    }
+    
     try {
       await api.updateIndicator(id, data);
+      // Update cache after successful update
+      if (isAuthenticated && isServerReachable) {
+        const updatedProjects = projects.map(p => ({
+          ...p,
+          indicators: p.indicators.map(i => i.id === id ? { ...i, ...data } : i)
+        }));
+        cacheOnlineSnapshot(updatedProjects);
+      }
     } catch (err) {
+      // If server becomes unreachable during update, queue it
+      if (isAuthenticated && !isServerReachable) {
+        queueIndicatorUpdate(id, data);
+        return;
+      }
       // Rollback on error
       await loadProjects();
       setError(err instanceof Error ? err.message : 'Failed to update indicator');
     }
-  }, []);
+  }, [isOfflineFallbackActive, isAuthenticated, isServerReachable, projects]);
 
   const handleQuickLog = useCallback(async (id: string) => {
     // Optimistic update
@@ -344,6 +410,7 @@ function App() {
               setDeleteTarget({ type: 'evidence', id });
               setShowDeleteModal(true);
             }}
+            isOfflineFallback={isOfflineFallbackActive}
           />
         ) : null;
       
@@ -435,6 +502,33 @@ function App() {
       
       {/* Main content */}
       <main className={`flex-1 overflow-auto transition-all duration-300 ${sidebarCollapsed ? 'ml-20' : 'ml-72'}`}>
+        {/* Offline Fallback Banner */}
+        {isOfflineFallbackActive && (
+          <div className="bg-amber-50 border-l-4 border-amber-500 p-4 m-4 rounded-r-lg animate-fade-in">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-amber-900">Offline fallback active</p>
+                <p className="text-sm text-amber-700">Server unavailable. You can view and edit existing indicators. Changes will sync when connection is restored.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sync Panel - shown when online and queue has items */}
+        {isAuthenticated && isServerReachable && getQueuedUpdateCount() > 0 && (
+          <SyncPanel
+            onSyncComplete={() => {
+              // Reload projects after sync to get latest state
+              loadProjects();
+            }}
+          />
+        )}
+
         {/* Error Banner */}
         {error && (
           <div className="bg-red-50 border-l-4 border-red-500 p-4 m-4 rounded-r-lg animate-fade-in">

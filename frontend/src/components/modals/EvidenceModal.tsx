@@ -6,6 +6,7 @@ import { openDrivePicker } from '../../drive/drivePicker';
 import { getOrCreateFolderHierarchy } from '../../drive/driveFolders';
 import { shouldUseBackend } from '../../state/dataMode';
 import { useAuth } from '../../auth/AuthContext';
+import { getIsServerReachable } from '../../services/connectivity';
 
 interface EvidenceModalProps {
   indicatorId: string;
@@ -25,6 +26,8 @@ export default function EvidenceModal({
   onSave 
 }: EvidenceModalProps) {
   const { isAuthenticated } = useAuth();
+  const isServerReachable = getIsServerReachable();
+  const isOfflineFallback = isAuthenticated && !isServerReachable;
   const [activeTab, setActiveTab] = useState<TabType>('upload');
   const [isLoading, setIsLoading] = useState(false);
   const [driveError, setDriveError] = useState<string | null>(null);
@@ -80,6 +83,8 @@ export default function EvidenceModal({
   ];
 
   const isOfflineMode = !shouldUseBackend(isAuthenticated);
+  // Block evidence operations in offline fallback mode
+  const isEvidenceBlocked = isOfflineFallback;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -93,8 +98,10 @@ export default function EvidenceModal({
   };
 
   const handleDriveAttach = useCallback(async () => {
-    if (isOfflineMode) {
-      setDriveError('Drive linking requires sign-in. Please sign in to use Google Drive.');
+    if (isOfflineMode || isEvidenceBlocked) {
+      setDriveError(isEvidenceBlocked 
+        ? 'Evidence linking is not available in offline fallback mode. Please wait for connection to be restored.'
+        : 'Drive linking requires sign-in. Please sign in to use Google Drive.');
       return;
     }
 
@@ -143,6 +150,11 @@ export default function EvidenceModal({
   }, [isOfflineMode, projectName, indicator]);
 
   const handleSubmit = useCallback(async () => {
+    if (isEvidenceBlocked) {
+      setDriveError('Evidence operations are not available in offline fallback mode. Please wait for connection to be restored.');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -196,6 +208,20 @@ export default function EvidenceModal({
           };
           break;
 
+        case 'drive':
+          if (!selectedDriveFile || isEvidenceBlocked) return;
+          data = {
+            indicator: indicatorId,
+            type: 'document',
+            driveFileId: selectedDriveFile.fileId,
+            driveName: selectedDriveFile.name,
+            driveMimeType: selectedDriveFile.mimeType,
+            driveWebViewLink: selectedDriveFile.webViewLink,
+            attachmentProvider: 'gdrive',
+            attachmentStatus: 'linked',
+          };
+          break;
+
         default:
           return;
       }
@@ -204,7 +230,7 @@ export default function EvidenceModal({
     } finally {
       setIsLoading(false);
     }
-  }, [activeTab, indicatorId, file, noteContent, linkUrl, linkName, formValues, indicator, onSave]);
+  }, [isEvidenceBlocked, activeTab, indicatorId, file, noteContent, linkUrl, linkName, formValues, indicator, onSave]);
 
   const getFileType = (fileName: string): EvidenceType => {
     const ext = fileName.split('.').pop()?.toLowerCase();
@@ -265,10 +291,27 @@ export default function EvidenceModal({
 
         {/* Content */}
         <div className="p-6">
+          {/* Offline Fallback Warning */}
+          {isEvidenceBlocked && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 flex items-start gap-3">
+              <AlertCircle className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-amber-900">Offline Fallback Mode</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  Evidence linking and uploading are not available while offline. Please wait for connection to be restored.
+                </p>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'upload' && (
             <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-indigo-400 hover:bg-indigo-50/50 transition-colors cursor-pointer"
+              onClick={() => !isEvidenceBlocked && fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
+                isEvidenceBlocked
+                  ? 'border-slate-200 bg-slate-50 cursor-not-allowed opacity-50'
+                  : 'border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 cursor-pointer'
+              }`}
             >
               {file ? (
                 <div className="flex items-center justify-center gap-3">
@@ -297,6 +340,7 @@ export default function EvidenceModal({
                 onChange={handleFileChange}
                 className="hidden"
                 accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif"
+                disabled={isEvidenceBlocked}
               />
             </div>
           )}
@@ -436,11 +480,11 @@ export default function EvidenceModal({
                   </p>
                   <button
                     onClick={handleDriveAttach}
-                    disabled={isOfflineMode || driveLoading}
+                    disabled={isOfflineMode || isEvidenceBlocked || driveLoading}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto"
                   >
                     {driveLoading && <Loader2 className="animate-spin" size={16} />}
-                    {isOfflineMode ? 'Sign In Required' : 'Attach from Google Drive'}
+                    {isEvidenceBlocked ? 'Offline - Unavailable' : isOfflineMode ? 'Sign In Required' : 'Attach from Google Drive'}
                   </button>
                 </div>
               )}
@@ -467,11 +511,11 @@ export default function EvidenceModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isSubmitDisabled() || isLoading}
+            disabled={isSubmitDisabled() || isLoading || isEvidenceBlocked}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading && <Loader2 className="animate-spin" size={18} />}
-            Save Evidence
+            {isEvidenceBlocked ? 'Offline - Unavailable' : 'Save Evidence'}
           </button>
         </div>
       </div>
