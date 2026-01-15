@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Project, Indicator, View, ComplianceStats, CreateProjectData, CreateEvidenceData } from './types';
 import { api } from './services/api';
+import { useAuth } from './auth/AuthContext';
+import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import ProjectHub from './components/ProjectHub';
 import Dashboard from './components/Dashboard';
@@ -18,6 +20,9 @@ import DeleteConfirmationModal from './components/modals/DeleteConfirmationModal
 import LoadingSpinner from './components/LoadingSpinner';
 
 function App() {
+  // Authentication
+  const { isAuthenticated, loading: authLoading, logout, user } = useAuth();
+
   // State
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -79,10 +84,12 @@ function App() {
     };
   }, [activeIndicators]);
 
-  // Load projects on mount
+  // Load projects on mount (only when authenticated)
   useEffect(() => {
-    loadProjects();
-  }, []);
+    if (isAuthenticated) {
+      loadProjects();
+    }
+  }, [isAuthenticated]);
 
   const loadProjects = async () => {
     setIsLoading(true);
@@ -360,6 +367,20 @@ function App() {
     }
   };
 
+  // Show loading screen while checking authentication
+  if (authLoading) {
+    return (
+      <div className="flex h-screen bg-slate-50 items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  // Show login page if not authenticated
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
   return (
     <div className="flex h-screen bg-slate-50">
       {/* Sidebar */}
@@ -372,6 +393,8 @@ function App() {
         isProjectActive={!!activeProjectId}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed(!sidebarCollapsed)}
+        onLogout={logout}
+        user={user}
       />
       
       {/* Main content */}

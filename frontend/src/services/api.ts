@@ -10,6 +10,7 @@ import {
   FrequencyGroupingResult
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+import { getAccessToken, getRefreshToken, setTokens, clearTokens } from '../auth/tokens';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -60,16 +61,75 @@ function generateId(): string {
   }
 }
 
-// Helper function for API requests
+// Auth endpoints that should NOT include Authorization header
+// Note: /auth/logout/ is not used (client-only logout), but included for completeness
+const AUTH_ENDPOINTS = ['/auth/login/', '/auth/refresh/'];
+
+/**
+ * Check if an endpoint is an auth endpoint
+ */
+function isAuthEndpoint(endpoint: string): boolean {
+  return AUTH_ENDPOINTS.some(authEp => endpoint.includes(authEp));
+}
+
+/**
+ * Attempt to refresh the access token using the refresh token
+ * Returns true if refresh succeeded, false otherwise
+ */
+async function refreshAccessToken(): Promise<boolean> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/refresh/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refresh: refreshToken }),
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const data = await response.json();
+    if (data.access) {
+      // Store new access token, keep existing refresh token
+      const currentRefresh = getRefreshToken();
+      if (currentRefresh) {
+        setTokens({ access: data.access, refresh: currentRefresh });
+      }
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// Helper function for API requests with authentication and 401 handling
 async function apiRequest<T>(
   endpoint: string, 
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retryOn401: boolean = true
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
+  const isAuth = isAuthEndpoint(endpoint);
   
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
   };
+  
+  // Add Authorization header if not an auth endpoint and access token exists
+  if (!isAuth) {
+    const accessToken = getAccessToken();
+    if (accessToken) {
+      defaultHeaders['Authorization'] = `Bearer ${accessToken}`;
+    }
+  }
   
   // Don't set Content-Type for FormData (browser will set it with boundary)
   if (options.body instanceof FormData) {
@@ -101,6 +161,49 @@ async function apiRequest<T>(
     throw err;
   }
   
+  // Handle 401 Unauthorized: attempt token refresh and retry once (max 1 retry per request)
+  // Loop protection: retryOn401 flag ensures we only retry once, and !isAuth ensures
+  // auth endpoints (login/refresh) never trigger refresh logic
+  if (response.status === 401 && retryOn401 && !isAuth) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      // Retry the original request with new token (only once)
+      const retryHeaders: HeadersInit = {
+        ...defaultHeaders,
+        'Authorization': `Bearer ${getAccessToken()}`,
+        ...options.headers,
+      };
+      
+      if (options.body instanceof FormData) {
+        delete (retryHeaders as Record<string, string>)['Content-Type'];
+      }
+      
+      const retryResponse = await fetch(url, {
+        ...options,
+        headers: retryHeaders,
+      });
+      
+      if (!retryResponse.ok) {
+        if (retryResponse.status === 401) {
+          // Refresh failed or token still invalid, clear tokens
+          clearTokens();
+          const error = await retryResponse.json().catch(() => ({ error: 'Authentication failed' }));
+          throw new Error(error.error || error.message || 'Authentication required');
+        }
+        const error = await retryResponse.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(error.error || error.message || `HTTP ${retryResponse.status}`);
+      }
+      
+      const text = await retryResponse.text();
+      return text ? JSON.parse(text) : ({} as T);
+    } else {
+      // Refresh failed, clear tokens and throw authentication error
+      clearTokens();
+      const error = await response.json().catch(() => ({ error: 'Authentication required' }));
+      throw new Error(error.error || error.message || 'Authentication required');
+    }
+  }
+  
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Request failed' }));
     throw new Error(error.error || error.message || `HTTP ${response.status}`);
@@ -112,6 +215,10 @@ async function apiRequest<T>(
 }
 
 // Local storage fallback for offline/demo mode
+// Behavior:
+// - When API fails (network error, unreachable backend), fall back to localStorage
+// - This provides offline functionality for unauthenticated users or when backend is down
+// - No dual-write: if API call fails, we use localStorage only (no mixing of data sources)
 const LOCAL_STORAGE_KEY = 'accredify_data';
 
 function getLocalData(): { projects: Project[] } {

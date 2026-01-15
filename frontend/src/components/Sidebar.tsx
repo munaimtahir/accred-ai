@@ -11,9 +11,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Home,
-  Settings
+  Settings,
+  LogOut,
+  User
 } from 'lucide-react';
 import { View, Project } from '../types';
+import { User as UserType } from '../auth/AuthContext';
 
 interface SidebarProps {
   currentView: View;
@@ -24,6 +27,8 @@ interface SidebarProps {
   isProjectActive: boolean;
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  onLogout: () => Promise<void>;
+  user: UserType | null;
 }
 
 interface NavItem {
@@ -54,6 +59,8 @@ export default function Sidebar({
   isProjectActive,
   collapsed,
   onToggleCollapsed,
+  onLogout,
+  user,
 }: SidebarProps) {
   const activeProject = projects.find(p => p.id === activeProjectId);
 
@@ -156,14 +163,37 @@ export default function Sidebar({
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-slate-200">
+      <div className="p-4 border-t border-slate-200 space-y-2">
+        {!collapsed && user && (
+          <div className="flex items-center gap-3 px-3 py-2 text-slate-600 mb-2">
+            <User size={18} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{user.username}</p>
+              {user.email && (
+                <p className="text-xs text-slate-500 truncate">{user.email}</p>
+              )}
+            </div>
+          </div>
+        )}
         {!collapsed && (
           <div className="flex items-center gap-3 px-3 py-2 text-slate-500">
             <Settings size={18} />
             <span className="text-sm">Settings</span>
           </div>
         )}
-        {collapsed && (
+        <button
+          onClick={onLogout}
+          className={`
+            w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-all
+            text-slate-600 hover:bg-red-50 hover:text-red-600
+            ${collapsed ? 'justify-center px-2' : ''}
+          `}
+          title={collapsed ? 'Logout' : undefined}
+        >
+          <LogOut size={18} />
+          {!collapsed && <span className="text-sm">Logout</span>}
+        </button>
+        {collapsed && !user && (
           <button className="w-full flex justify-center p-2 text-slate-400 hover:text-slate-600">
             <Settings size={18} />
           </button>
