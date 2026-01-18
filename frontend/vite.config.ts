@@ -1,3 +1,8 @@
+// Mock navigator for Tailwind CSS build
+if (typeof global.navigator === 'undefined') {
+  global.navigator = { userAgent: 'node' } as any;
+}
+
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 

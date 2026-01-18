@@ -1,3 +1,5 @@
+declare const google: any;
+
 /**
  * Google Drive Picker Integration
  * 
@@ -46,7 +48,7 @@ function loadPickerScript(): Promise<void> {
     script.src = 'https://apis.google.com/js/picker.js';
     script.async = true;
     script.defer = true;
-    
+
     script.onload = () => {
       // Wait for google.picker to be available
       const checkPicker = setInterval(() => {
@@ -60,7 +62,7 @@ function loadPickerScript(): Promise<void> {
         reject(new Error('Timeout waiting for google.picker'));
       }, 10000);
     };
-    
+
     script.onerror = () => reject(new Error('Failed to load Google Picker script'));
     document.head.appendChild(script);
   });
@@ -90,12 +92,12 @@ export async function openDrivePicker(
 
   return new Promise((resolve) => {
     const view = new google.picker.DocsView(google.picker.ViewId.DOCS);
-    
+
     // If root folder specified, set it as the parent
     if (rootFolderId) {
       view.setParent(rootFolderId);
     }
-    
+
     // Only show files (not folders)
     view.setIncludeFolders(false);
     view.setMimeTypes('');
@@ -103,7 +105,7 @@ export async function openDrivePicker(
     const picker = new google.picker.PickerBuilder()
       .setOAuthToken(accessToken)
       .addView(view)
-      .setCallback((data: google.picker.ResponseObject) => {
+      .setCallback((data: any) => {
         if (data[google.picker.Response.ACTION] === google.picker.Action.PICKED) {
           const doc = data[google.picker.Response.DOCUMENTS][0];
           resolve({

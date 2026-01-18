@@ -1,3 +1,5 @@
+declare const require: any;
+
 /**
  * Offline Cache Service
  * 
@@ -79,14 +81,14 @@ export function readCachedSnapshot(): OfflineCache | null {
   try {
     const data = localStorage.getItem(CACHE_KEY);
     if (!data) return null;
-    
+
     const cache = JSON.parse(data) as OfflineCache;
-    
+
     // Validate structure
     if (!cache.version || !cache.timestamp || !Array.isArray(cache.projects)) {
       return null;
     }
-    
+
     return cache;
   } catch (error) {
     console.error('Failed to read cached snapshot:', error);
@@ -116,7 +118,7 @@ export function getCachedProjects(): Project[] {
     const indicators: Indicator[] = cachedProject.indicators.map(cachedIndicator => {
       // Check if this indicator has pending updates
       const update = queuedUpdates[cachedIndicator.id];
-      
+
       return {
         id: cachedIndicator.id,
         section: cachedIndicator.section,

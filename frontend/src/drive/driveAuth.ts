@@ -16,7 +16,7 @@ let cachedToken: string | null = null;
 let tokenExpiry: number | null = null;
 
 // Google Identity Services token client
-let tokenClient: google.accounts.oauth2.TokenClient | null = null;
+let tokenClient: any | null = null;
 
 /**
  * Initialize Google Identity Services token client
@@ -36,14 +36,14 @@ export function initializeDriveAuth(): void {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
     scope: DRIVE_SCOPE,
-    callback: (response: google.accounts.oauth2.TokenResponse) => {
+    callback: (response: any) => {
       if (response.error) {
         console.error('Google OAuth error:', response.error);
         cachedToken = null;
         tokenExpiry = null;
         return;
       }
-      
+
       cachedToken = response.access_token;
       // Token expires in response.expires_in seconds
       tokenExpiry = Date.now() + (response.expires_in * 1000);
@@ -55,9 +55,9 @@ export function initializeDriveAuth(): void {
  * Check if Google Identity Services is loaded
  */
 export function isGoogleLoaded(): boolean {
-  return typeof google !== 'undefined' && 
-         typeof google.accounts !== 'undefined' && 
-         typeof google.accounts.oauth2 !== 'undefined';
+  return typeof google !== 'undefined' &&
+    typeof google.accounts !== 'undefined' &&
+    typeof google.accounts.oauth2 !== 'undefined';
 }
 
 /**
@@ -97,7 +97,7 @@ export function requestDriveToken(): Promise<string | null> {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
         scope: DRIVE_SCOPE,
-        callback: (response: google.accounts.oauth2.TokenResponse) => {
+        callback: (response: any) => {
           if (response.error) {
             console.error('Google OAuth error:', response.error);
             cachedToken = null;
@@ -108,11 +108,11 @@ export function requestDriveToken(): Promise<string | null> {
             }
             return;
           }
-          
+
           cachedToken = response.access_token;
           // Token expires in response.expires_in seconds
           tokenExpiry = Date.now() + (response.expires_in * 1000);
-          
+
           if (pendingTokenResolver) {
             pendingTokenResolver(cachedToken);
             pendingTokenResolver = null;
@@ -132,7 +132,7 @@ export function requestDriveToken(): Promise<string | null> {
 
     // Request new token
     tokenClient!.requestAccessToken({ prompt: 'consent' });
-    
+
     // Timeout after 30 seconds
     setTimeout(() => {
       if (pendingTokenResolver === resolve) {
