@@ -29,7 +29,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 function App() {
   // Authentication
   const { isAuthenticated, loading: authLoading, logout, user } = useAuth();
-  
+
   // Data mode: check if we should allow offline mode
   const dataMode = getDataMode(isAuthenticated);
   const allowOfflineMode = dataMode === DataMode.OFFLINE && !isAuthenticated;
@@ -40,7 +40,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<View>('projects');
-  
+
   // Modal states
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
@@ -49,25 +49,25 @@ function App() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedIndicatorId, setSelectedIndicatorId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'project' | 'evidence'; id: string } | null>(null);
-  
+
   // Sidebar collapsed state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  
+
   // Track if we've checked for import prompt this session (prevent re-prompting)
   const hasCheckedImportRef = useRef(false);
   const previousAuthStateRef = useRef(isAuthenticated);
-  
+
   // Offline fallback state
   const [isServerReachable, setIsServerReachable] = useState(true);
   const isOfflineFallbackActive = isAuthenticated && !isServerReachable;
 
   // Computed values
-  const activeProject = useMemo(() => 
+  const activeProject = useMemo(() =>
     projects.find(p => p.id === activeProjectId) || null,
     [projects, activeProjectId]
   );
 
-  const activeIndicators = useMemo(() => 
+  const activeIndicators = useMemo(() =>
     activeProject?.indicators || [],
     [activeProject]
   );
@@ -131,9 +131,15 @@ function App() {
         const cachedProjects = getCachedProjects();
         if (cachedProjects.length > 0) {
           setProjects(cachedProjects);
-          setIsLoading(false);
         }
+        setIsLoading(false);
       }
+    } else {
+      // Offline Demo Mode (Unauthenticated)
+      // Load offline projects if any, otherwise just stop loading
+      const cachedProjects = getCachedProjects();
+      setProjects(cachedProjects);
+      setIsLoading(false);
     }
   }, [isAuthenticated, isServerReachable]);
 
@@ -142,20 +148,20 @@ function App() {
     // Only check when transitioning from false to true (login)
     const wasUnauthenticated = !previousAuthStateRef.current;
     const isNowAuthenticated = isAuthenticated;
-    
+
     if (wasUnauthenticated && isNowAuthenticated && !hasCheckedImportRef.current) {
       hasCheckedImportRef.current = true;
-      
+
       // Small delay to ensure auth state is fully settled
       const timer = setTimeout(() => {
         if (shouldShowImportPrompt(isAuthenticated)) {
           setShowImportModal(true);
         }
       }, 500);
-      
+
       return () => clearTimeout(timer);
     }
-    
+
     // Update previous auth state
     previousAuthStateRef.current = isAuthenticated;
   }, [isAuthenticated]);
@@ -192,10 +198,10 @@ function App() {
     setIsLoading(true);
     try {
       // #region agent log
-      fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({location:'frontend/src/App.tsx:handleSaveProject',message:'handleSaveProject:enter:nocors',data:{nameLen:data?.name?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'Hlog'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36', { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ location: 'frontend/src/App.tsx:handleSaveProject', message: 'handleSaveProject:enter:nocors', data: { nameLen: data?.name?.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'Hlog' }) }).catch(() => { });
       // #endregion
       // #region agent log
-      fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/App.tsx:handleSaveProject',message:'handleSaveProject:enter',data:{nameLen:data?.name?.length,descLen:data?.description?.length,indicatorsCount:Array.isArray((data as any)?.indicators)?(data as any).indicators.length:null},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H0'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'frontend/src/App.tsx:handleSaveProject', message: 'handleSaveProject:enter', data: { nameLen: data?.name?.length, descLen: data?.description?.length, indicatorsCount: Array.isArray((data as any)?.indicators) ? (data as any).indicators.length : null }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H0' }) }).catch(() => { });
       // #endregion
       const newProject = await api.createProject(data);
       setProjects(prev => [...prev, newProject]);
@@ -204,7 +210,7 @@ function App() {
       setShowAddProjectModal(false);
     } catch (err) {
       // #region agent log
-      fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/App.tsx:handleSaveProject',message:'handleSaveProject:error',data:{errName:(err as any)?.name,errMsg:String((err as any)?.message||err)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H0'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'frontend/src/App.tsx:handleSaveProject', message: 'handleSaveProject:error', data: { errName: (err as any)?.name, errMsg: String((err as any)?.message || err) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H0' }) }).catch(() => { });
       // #endregion
       setError(err instanceof Error ? err.message : 'Failed to create project');
     } finally {
@@ -215,7 +221,7 @@ function App() {
   const handleUpdateProject = useCallback(async (id: string, data: Partial<Project>) => {
     // Optimistic update
     setProjects(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
-    
+
     try {
       await api.updateProject(id, data);
       setShowEditProjectModal(false);
@@ -230,12 +236,12 @@ function App() {
     // Optimistic update
     const previousProjects = [...projects];
     setProjects(prev => prev.filter(p => p.id !== id));
-    
+
     if (activeProjectId === id) {
       setActiveProjectId(null);
       setCurrentView('projects');
     }
-    
+
     try {
       await api.deleteProject(id);
       setShowDeleteModal(false);
@@ -252,25 +258,25 @@ function App() {
     // The UI should already block this, but we check here too for safety
     if (!isOfflineFallbackActive && data.status === 'Compliant') {
       const indicator = projects.flatMap(p => p.indicators).find(i => i.id === id);
-      if (indicator && indicator.evidenceState && 
-          !['accepted', 'evidence_complete'].includes(indicator.evidenceState)) {
+      if (indicator && indicator.evidenceState &&
+        !['accepted', 'evidence_complete'].includes(indicator.evidenceState)) {
         // Evidence incomplete - don't update, error will be shown by UI
         return;
       }
     }
-    
+
     // Optimistic update
     setProjects(prev => prev.map(p => ({
       ...p,
       indicators: p.indicators.map(i => i.id === id ? { ...i, ...data } : i)
     })));
-    
+
     // If offline fallback active, queue the update instead of calling API
     if (isOfflineFallbackActive) {
       queueIndicatorUpdate(id, data);
       return;
     }
-    
+
     try {
       await api.updateIndicator(id, data);
       // Update cache after successful update
@@ -287,19 +293,19 @@ function App() {
         queueIndicatorUpdate(id, data);
         return;
       }
-      
+
       // Phase 6: Handle evidence completion errors
       // The backend returns errors like: { error: 'Cannot complete indicator', message: '...' }
       // apiRequest extracts the message, so we check the error message
       const errorMessage = err instanceof Error ? err.message : String(err);
-      if (errorMessage.includes('requires evidence') || errorMessage.includes('Evidence') || 
-          errorMessage.includes('Cannot complete indicator')) {
+      if (errorMessage.includes('requires evidence') || errorMessage.includes('Evidence') ||
+        errorMessage.includes('Cannot complete indicator')) {
         // Rollback on error
         await loadProjects();
         setError(errorMessage);
         return;
       }
-      
+
       // Rollback on error
       await loadProjects();
       setError(errorMessage || 'Failed to update indicator');
@@ -310,8 +316,8 @@ function App() {
     // Phase 6: Check evidence before attempting quick log (online only)
     if (!isOfflineFallbackActive) {
       const indicator = projects.flatMap(p => p.indicators).find(i => i.id === id);
-      if (indicator && indicator.evidenceState && 
-          !['accepted', 'evidence_complete'].includes(indicator.evidenceState)) {
+      if (indicator && indicator.evidenceState &&
+        !['accepted', 'evidence_complete'].includes(indicator.evidenceState)) {
         // Evidence incomplete - don't update, error will be shown by UI
         setError(indicator.evidenceState === 'no_evidence'
           ? 'This indicator requires evidence before it can be completed.'
@@ -319,17 +325,17 @@ function App() {
         return;
       }
     }
-    
+
     // Optimistic update
     setProjects(prev => prev.map(p => ({
       ...p,
-      indicators: p.indicators.map(i => 
-        i.id === id 
-          ? { ...i, status: 'Compliant' as const, lastUpdated: new Date().toISOString() } 
+      indicators: p.indicators.map(i =>
+        i.id === id
+          ? { ...i, status: 'Compliant' as const, lastUpdated: new Date().toISOString() }
           : i
       )
     })));
-    
+
     try {
       await api.quickLogIndicator(id);
       // Reload to get updated evidence state
@@ -337,17 +343,17 @@ function App() {
     } catch (err: any) {
       // Rollback on error
       await loadProjects();
-      
+
       // Phase 6: Handle evidence completion errors
       // The backend returns errors like: { error: 'Cannot complete indicator', message: '...' }
       // apiRequest extracts the message, so we check the error message
       const errorMessage = err instanceof Error ? err.message : String(err);
-      if (errorMessage.includes('requires evidence') || errorMessage.includes('Evidence') || 
-          errorMessage.includes('Cannot complete indicator')) {
+      if (errorMessage.includes('requires evidence') || errorMessage.includes('Evidence') ||
+        errorMessage.includes('Cannot complete indicator')) {
         setError(errorMessage);
         return;
       }
-      
+
       setError(errorMessage || 'Failed to log indicator');
     }
   }, [isOfflineFallbackActive, projects]);
@@ -357,9 +363,9 @@ function App() {
       const newEvidence = await api.createEvidence(data);
       setProjects(prev => prev.map(p => ({
         ...p,
-        indicators: p.indicators.map(i => 
-          i.id === data.indicator 
-            ? { ...i, evidence: [...i.evidence, newEvidence] } 
+        indicators: p.indicators.map(i =>
+          i.id === data.indicator
+            ? { ...i, evidence: [...i.evidence, newEvidence] }
             : i
         )
       })));
@@ -379,7 +385,7 @@ function App() {
         evidence: i.evidence.filter(e => e.id !== evidenceId)
       }))
     })));
-    
+
     try {
       await api.deleteEvidence(evidenceId);
       setShowDeleteModal(false);
@@ -406,7 +412,7 @@ function App() {
 
   const handleConfirmDelete = useCallback(() => {
     if (!deleteTarget) return;
-    
+
     if (deleteTarget.type === 'project') {
       handleDeleteProject(deleteTarget.id);
     } else if (deleteTarget.type === 'evidence') {
@@ -441,7 +447,7 @@ function App() {
             }}
           />
         );
-      
+
       case 'dashboard':
         return activeProject ? (
           <Dashboard
@@ -449,7 +455,7 @@ function App() {
             stats={stats}
           />
         ) : null;
-      
+
       case 'checklist':
         return activeProject ? (
           <Checklist
@@ -464,7 +470,7 @@ function App() {
             isOfflineFallback={isOfflineFallbackActive}
           />
         ) : null;
-      
+
       case 'upcoming':
         return activeProject ? (
           <UpcomingTasks
@@ -473,7 +479,7 @@ function App() {
             onAddEvidence={handleOpenEvidenceModal}
           />
         ) : null;
-      
+
       case 'analysis':
         return activeProject ? (
           <AIAnalysis
@@ -481,7 +487,7 @@ function App() {
             onUpdateIndicator={handleUpdateIndicator}
           />
         ) : null;
-      
+
       case 'library':
         return activeProject ? (
           <DocumentLibrary
@@ -492,14 +498,14 @@ function App() {
             }}
           />
         ) : null;
-      
+
       case 'ai':
         return (
           <AIAssistant
             indicators={activeIndicators}
           />
         );
-      
+
       case 'reports':
         return activeProject ? (
           <Reports
@@ -507,14 +513,14 @@ function App() {
             stats={stats}
           />
         ) : null;
-      
+
       case 'converter':
         return (
           <Converter
             onImportProject={handleSaveProject}
           />
         );
-      
+
       default:
         return null;
     }
@@ -550,7 +556,7 @@ function App() {
         user={user}
         dataMode={dataMode}
       />
-      
+
       {/* Main content */}
       <main className={`flex-1 overflow-auto transition-all duration-300 ${sidebarCollapsed ? 'ml-20' : 'ml-72'}`}>
         {/* Offline Fallback Banner */}
@@ -592,7 +598,7 @@ function App() {
               <div className="ml-3">
                 <p className="text-sm text-red-700">{error}</p>
               </div>
-              <button 
+              <button
                 onClick={() => setError(null)}
                 className="ml-auto text-red-500 hover:text-red-700"
               >
@@ -601,7 +607,7 @@ function App() {
             </div>
           </div>
         )}
-        
+
         {/* View Content */}
         <div className="p-6">
           {renderView()}
@@ -615,7 +621,7 @@ function App() {
           onSave={handleSaveProject}
         />
       )}
-      
+
       {showEditProjectModal && activeProject && (
         <EditProjectModal
           project={activeProject}
@@ -628,7 +634,7 @@ function App() {
           }}
         />
       )}
-      
+
       {showEvidenceModal && selectedIndicatorId && (
         <EvidenceModal
           indicatorId={selectedIndicatorId}
@@ -641,7 +647,7 @@ function App() {
           onSave={handleAddEvidence}
         />
       )}
-      
+
       {showDeleteModal && deleteTarget && (
         <DeleteConfirmationModal
           type={deleteTarget.type}
@@ -652,7 +658,7 @@ function App() {
           onConfirm={handleConfirmDelete}
         />
       )}
-      
+
       {showImportModal && (
         <ImportOfflineDataModal
           onClose={() => setShowImportModal(false)}
