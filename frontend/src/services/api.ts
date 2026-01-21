@@ -1,8 +1,8 @@
-import { 
-  Project, 
-  Indicator, 
-  Evidence, 
-  CreateProjectData, 
+import {
+  Project,
+  Indicator,
+  Evidence,
+  CreateProjectData,
   CreateEvidenceData,
   CategorizationResult,
   TaskSuggestion,
@@ -13,7 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getAccessToken, getRefreshToken, setTokens, clearTokens, isAuthenticated as checkAuth } from '../auth/tokens';
 import { shouldUseBackend, shouldUseLocalStorage, DataMode } from '../state/dataMode';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 function debugLog(payload: {
   location: string;
@@ -34,7 +34,7 @@ function debugLog(payload: {
     mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify(entry),
-  }).catch(() => {});
+  }).catch(() => { });
   // #endregion
 
   // Fallback evidence channel when the ingest server is unreachable (e.g., app running in Docker)
@@ -113,17 +113,17 @@ async function refreshAccessToken(): Promise<boolean> {
 
 // Helper function for API requests with authentication and 401 handling
 async function apiRequest<T>(
-  endpoint: string, 
+  endpoint: string,
   options: RequestInit = {},
   retryOn401: boolean = true
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   const isAuth = isAuthEndpoint(endpoint);
-  
+
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
   };
-  
+
   // Add Authorization header if not an auth endpoint and access token exists
   if (!isAuth) {
     const accessToken = getAccessToken();
@@ -131,12 +131,12 @@ async function apiRequest<T>(
       defaultHeaders['Authorization'] = `Bearer ${accessToken}`;
     }
   }
-  
+
   // Don't set Content-Type for FormData (browser will set it with boundary)
   if (options.body instanceof FormData) {
     delete (defaultHeaders as Record<string, string>)['Content-Type'];
   }
-  
+
   let response: Response;
   try {
     response = await fetch(url, {
@@ -161,7 +161,7 @@ async function apiRequest<T>(
     });
     throw err;
   }
-  
+
   // Handle 401 Unauthorized: attempt token refresh and retry once (max 1 retry per request)
   // Loop protection: retryOn401 flag ensures we only retry once, and !isAuth ensures
   // auth endpoints (login/refresh) never trigger refresh logic
@@ -174,16 +174,16 @@ async function apiRequest<T>(
         'Authorization': `Bearer ${getAccessToken()}`,
         ...options.headers,
       };
-      
+
       if (options.body instanceof FormData) {
         delete (retryHeaders as Record<string, string>)['Content-Type'];
       }
-      
+
       const retryResponse = await fetch(url, {
         ...options,
         headers: retryHeaders,
       });
-      
+
       if (!retryResponse.ok) {
         if (retryResponse.status === 401) {
           // Refresh failed or token still invalid, clear tokens
@@ -194,7 +194,7 @@ async function apiRequest<T>(
         const error = await retryResponse.json().catch(() => ({ error: 'Request failed' }));
         throw new Error(error.message || error.error || `HTTP ${retryResponse.status}`);
       }
-      
+
       const text = await retryResponse.text();
       return text ? JSON.parse(text) : ({} as T);
     } else {
@@ -204,14 +204,14 @@ async function apiRequest<T>(
       throw new Error(error.message || error.error || 'Authentication required');
     }
   }
-  
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Request failed' }));
     // Phase 6: Prioritize message field over error field for better user feedback
     const errorMessage = error.message || error.error || `HTTP ${response.status}`;
     throw new Error(errorMessage);
   }
-  
+
   // Handle empty responses
   const text = await response.text();
   return text ? JSON.parse(text) : ({} as T);
@@ -279,10 +279,10 @@ export const api = {
 
   async createProject(data: CreateProjectData): Promise<Project> {
     // #region agent log
-    fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:enter:nocors',data:{hasCrypto:typeof (globalThis as any).crypto !== 'undefined',hasRandomUUID:typeof (globalThis as any).crypto?.randomUUID === 'function',protocol:(globalThis as any).location?.protocol},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'Hlog'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36', { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ location: 'frontend/src/services/api.ts:createProject', message: 'createProject:enter:nocors', data: { hasCrypto: typeof (globalThis as any).crypto !== 'undefined', hasRandomUUID: typeof (globalThis as any).crypto?.randomUUID === 'function', protocol: (globalThis as any).location?.protocol }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'Hlog' }) }).catch(() => { });
     // #endregion
     // #region agent log
-    fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:enter',data:{apiBase:API_BASE_URL,hasCrypto:typeof (globalThis as any).crypto !== 'undefined',cryptoType:typeof (globalThis as any).crypto,hasRandomUUID:typeof (globalThis as any).crypto?.randomUUID === 'function',randomUUIDType:typeof (globalThis as any).crypto?.randomUUID,isSecureContext:(globalThis as any).isSecureContext,protocol:(globalThis as any).location?.protocol,userAgent:(globalThis as any).navigator?.userAgent},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'frontend/src/services/api.ts:createProject', message: 'createProject:enter', data: { apiBase: API_BASE_URL, hasCrypto: typeof (globalThis as any).crypto !== 'undefined', cryptoType: typeof (globalThis as any).crypto, hasRandomUUID: typeof (globalThis as any).crypto?.randomUUID === 'function', randomUUIDType: typeof (globalThis as any).crypto?.randomUUID, isSecureContext: (globalThis as any).isSecureContext, protocol: (globalThis as any).location?.protocol, userAgent: (globalThis as any).navigator?.userAgent }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H1' }) }).catch(() => { });
     // #endregion
     try {
       return await apiRequest<Project>('/projects/', {
@@ -293,12 +293,12 @@ export const api = {
       // Only fallback to localStorage if unauthenticated and in offline mode
       if (shouldFallbackToLocalStorage()) {
         // #region agent log
-        fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:api_failed_using_local',data:{errName:(error as any)?.name,errMsg:String((error as any)?.message||error)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'frontend/src/services/api.ts:createProject', message: 'createProject:api_failed_using_local', data: { errName: (error as any)?.name, errMsg: String((error as any)?.message || error) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H2' }) }).catch(() => { });
         // #endregion
         console.warn('API unavailable, using local storage (offline mode):', error);
         const localData = getLocalData();
         // #region agent log
-        fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:before_uuid',data:{hasCrypto:typeof (globalThis as any).crypto !== 'undefined',hasRandomUUID:typeof (globalThis as any).crypto?.randomUUID === 'function',randomUUIDType:typeof (globalThis as any).crypto?.randomUUID},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'frontend/src/services/api.ts:createProject', message: 'createProject:before_uuid', data: { hasCrypto: typeof (globalThis as any).crypto !== 'undefined', hasRandomUUID: typeof (globalThis as any).crypto?.randomUUID === 'function', randomUUIDType: typeof (globalThis as any).crypto?.randomUUID }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H1' }) }).catch(() => { });
         // #endregion
         debugLog({
           location: 'frontend/src/services/api.ts:createProject',
@@ -330,7 +330,7 @@ export const api = {
           createdAt: new Date().toISOString(),
         };
         // #region agent log
-        fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'frontend/src/services/api.ts:createProject',message:'createProject:local_created',data:{projectIdType:typeof (newProject as any)?.id,indicatorsCount:Array.isArray((newProject as any)?.indicators)?(newProject as any).indicators.length:null},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7254/ingest/45629900-3be2-4b80-aff1-669833300a36', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'frontend/src/services/api.ts:createProject', message: 'createProject:local_created', data: { projectIdType: typeof (newProject as any)?.id, indicatorsCount: Array.isArray((newProject as any)?.indicators) ? (newProject as any).indicators.length : null }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H3' }) }).catch(() => { });
         // #endregion
         localData.projects.push(newProject);
         setLocalData(localData);
@@ -397,9 +397,9 @@ export const api = {
         for (const project of localData.projects) {
           const indicatorIndex = project.indicators.findIndex(i => i.id === id);
           if (indicatorIndex !== -1) {
-            project.indicators[indicatorIndex] = { 
-              ...project.indicators[indicatorIndex], 
-              ...data 
+            project.indicators[indicatorIndex] = {
+              ...project.indicators[indicatorIndex],
+              ...data
             };
             setLocalData(localData);
             return project.indicators[indicatorIndex];
@@ -421,9 +421,9 @@ export const api = {
       // Only fallback to localStorage if unauthenticated and in offline mode
       if (shouldFallbackToLocalStorage()) {
         console.warn('API unavailable, using local storage (offline mode):', error);
-        return this.updateIndicator(id, { 
-          status: 'Compliant', 
-          lastUpdated: new Date().toISOString() 
+        return this.updateIndicator(id, {
+          status: 'Compliant',
+          lastUpdated: new Date().toISOString()
         });
       }
       // If authenticated, throw error (no localStorage fallback)
@@ -468,7 +468,7 @@ export const api = {
           fileUrl: data.fileUrl,
           content: data.content,
         };
-        
+
         for (const project of localData.projects) {
           const indicator = project.indicators.find(i => i.id === data.indicator);
           if (indicator) {
@@ -513,7 +513,7 @@ export const api = {
     if (shouldFallbackToLocalStorage()) {
       throw new Error('Evidence review requires sign-in and online connection');
     }
-    
+
     try {
       return await apiRequest<Evidence>(`/evidence/${id}/review/`, {
         method: 'POST',
@@ -528,7 +528,7 @@ export const api = {
   async analyzeChecklist(indicators: Partial<Indicator>[]): Promise<Partial<Indicator>[]> {
     // Block AI features in offline mode
     requireAIFeatures();
-    
+
     try {
       const response = await apiRequest<{ indicators: Partial<Indicator>[] }>('/analyze-checklist/', {
         method: 'POST',
@@ -544,7 +544,7 @@ export const api = {
   async analyzeCategorization(indicators: Indicator[]): Promise<CategorizationResult> {
     // Block AI features in offline mode
     requireAIFeatures();
-    
+
     try {
       return await apiRequest<CategorizationResult>('/analyze-categorization/', {
         method: 'POST',
@@ -559,7 +559,7 @@ export const api = {
   async analyzeIndicatorExplanations(indicators: Indicator[]): Promise<Record<string, IndicatorExplanation>> {
     // Block AI features in offline mode
     requireAIFeatures();
-    
+
     try {
       return await apiRequest<Record<string, IndicatorExplanation>>('/analyze-indicator-explanations/', {
         method: 'POST',
@@ -574,7 +574,7 @@ export const api = {
   async analyzeFrequencyGrouping(indicators: Indicator[]): Promise<FrequencyGroupingResult> {
     // Block AI features in offline mode
     requireAIFeatures();
-    
+
     try {
       return await apiRequest<FrequencyGroupingResult>('/analyze-frequency-grouping/', {
         method: 'POST',
@@ -589,7 +589,7 @@ export const api = {
   async askAssistant(query: string, indicators?: Indicator[]): Promise<string> {
     // Block AI features in offline mode
     requireAIFeatures();
-    
+
     try {
       const response = await apiRequest<{ response: string }>('/ask-assistant/', {
         method: 'POST',
@@ -605,7 +605,7 @@ export const api = {
   async generateReportSummary(indicators: Indicator[]): Promise<string> {
     // Block AI features in offline mode
     requireAIFeatures();
-    
+
     try {
       const response = await apiRequest<{ summary: string }>('/report-summary/', {
         method: 'POST',
@@ -621,7 +621,7 @@ export const api = {
   async convertDocument(documentText: string): Promise<string> {
     // Block AI features in offline mode
     requireAIFeatures();
-    
+
     try {
       const response = await apiRequest<{ csv_content: string }>('/convert-document/', {
         method: 'POST',
@@ -637,7 +637,7 @@ export const api = {
   async generateComplianceGuide(indicator: Indicator): Promise<string> {
     // Block AI features in offline mode
     requireAIFeatures();
-    
+
     try {
       const response = await apiRequest<{ guide: string }>('/compliance-guide/', {
         method: 'POST',
@@ -653,7 +653,7 @@ export const api = {
   async analyzeTasks(indicators: Indicator[]): Promise<TaskSuggestion[]> {
     // Block AI features in offline mode
     requireAIFeatures();
-    
+
     try {
       return await apiRequest<TaskSuggestion[]>('/analyze-tasks/', {
         method: 'POST',

@@ -101,7 +101,7 @@ def change_password(request):
 
 class ProjectViewSet(viewsets.ModelViewSet):
     """ViewSet for Project CRUD operations"""
-    permission_classes = [IsProjectOwnerOrReadOnly]
+    permission_classes = [IsAuthenticated, IsProjectOwnerOrReadOnly]
     serializer_class = ProjectSerializer
     queryset = Project.objects.all()
     
@@ -158,7 +158,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
 class IndicatorViewSet(viewsets.ModelViewSet):
     """ViewSet for Indicator operations"""
-    permission_classes = [IsProjectMember]
+    permission_classes = [IsAuthenticated, IsProjectMember]
     queryset = Indicator.objects.prefetch_related('evidence').all()
     serializer_class = IndicatorSerializer
     
@@ -240,7 +240,7 @@ class IndicatorViewSet(viewsets.ModelViewSet):
 
 class EvidenceViewSet(viewsets.ModelViewSet):
     """ViewSet for Evidence operations"""
-    permission_classes = [IsProjectMember]
+    permission_classes = [IsAuthenticated, IsProjectMember]
     queryset = Evidence.objects.all()
     serializer_class = EvidenceSerializer
     parser_classes = (MultiPartParser, FormParser, JSONParser)
