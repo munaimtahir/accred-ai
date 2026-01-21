@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
-import { 
-  FileSpreadsheet, 
-  Upload, 
-  Download, 
+import {
+  FileSpreadsheet,
+  Upload,
+  Download,
   FileText,
   Loader2,
   CheckCircle2,
@@ -73,21 +73,56 @@ export default function Converter({ onImportProject }: ConverterProps) {
   const handleImportToProject = useCallback(() => {
     if (!csvContent || !projectName.trim()) return;
 
-    // Parse CSV
-    const lines = csvContent.trim().split('\n');
+    // Improved header detection
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-    
+    const getIdx = (names: string[]) => {
+      for (const name of names) {
+        const idx = headers.indexOf(name.toLowerCase());
+        if (idx !== -1) return idx;
+      }
+      return -1;
+    };
+
+    const sectionIdx = getIdx(['section', 'chapter']);
+    const standardIdx = getIdx(['standard', 'std']);
+    const indicatorIdx = getIdx(['indicator', 'requirement']);
+    const evidenceIdx = getIdx(['evidence required', 'evidence', 'description']);
+    const scoreIdx = getIdx(['score', 'points']);
+    const frequencyIdx = getIdx(['frequency', 'period']);
+    const responsibleIdx = getIdx(['responsible person', 'responsible']);
+    const assignedIdx = getIdx(['assigned to', 'assignee']);
+
     const indicators: Partial<Indicator>[] = [];
-    
+
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim());
+      const row = lines[i];
+      if (!row.trim()) continue;
+
+      let values: string[] = [];
+      const matches = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+      if (matches) {
+        values = matches.map(v => v.replace(/^"|"$/g, '').trim());
+      } else {
+        values = row.split(',').map(v => v.trim());
+      }
+
+      // Handle PHC section comma shift
+      if (values[sectionIdx] === "Access" && values[standardIdx]?.trim().startsWith("Assessment and Continuity of Care (AAC)")) {
+        const newValues = [...values];
+        newValues[sectionIdx] = "Access, Assessment and Continuity of Care (AAC)";
+        newValues.splice(sectionIdx + 1, 1);
+        values = newValues;
+      }
+
       const indicator: Partial<Indicator> = {
-        section: values[headers.indexOf('section')] || 'General',
-        standard: values[headers.indexOf('standard')] || `STD-${i}`,
-        indicator: values[headers.indexOf('indicator')] || `Indicator ${i}`,
-        description: values[headers.indexOf('description')] || '',
-        score: parseInt(values[headers.indexOf('score')]) || 10,
-        frequency: (values[headers.indexOf('frequency')] as any) || 'One-time',
+        section: values[sectionIdx] || 'General',
+        standard: values[standardIdx] || `STD-${i}`,
+        indicator: values[indicatorIdx] || `Indicator ${i}`,
+        description: values[evidenceIdx] || '',
+        score: parseInt(values[scoreIdx]) || 10,
+        frequency: (values[frequencyIdx] as any) || 'One-time',
+        responsible_person: (values[responsibleIdx] as any) || '',
+        assignee: (values[assignedIdx] as any) || '',
         status: 'Not Started',
       };
       indicators.push(indicator);
@@ -115,7 +150,7 @@ export default function Converter({ onImportProject }: ConverterProps) {
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
           <AlertCircle className="text-red-600" />
           <p className="text-sm text-red-700">{error}</p>
-          <button 
+          <button
             onClick={() => setError(null)}
             className="ml-auto text-red-600 hover:text-red-800"
           >

@@ -22,22 +22,68 @@ export default function AddProjectModal({ onClose, onSave }: AddProjectModalProp
     const lines = text.trim().split('\n');
     if (lines.length < 2) return [];
 
+    // Improved header detection
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
     const indicators: Partial<Indicator>[] = [];
 
+    const getIdx = (names: string[]) => {
+      for (const name of names) {
+        const idx = headers.indexOf(name.toLowerCase());
+        if (idx !== -1) return idx;
+      }
+      return -1;
+    };
+
+    const sectionIdx = getIdx(['section', 'chapter']);
+    const standardIdx = getIdx(['standard', 'std']);
+    const indicatorIdx = getIdx(['indicator', 'requirement']);
+    const evidenceIdx = getIdx(['evidence required', 'evidence', 'description']);
+    const scoreIdx = getIdx(['score', 'points']);
+    const frequencyIdx = getIdx(['frequency', 'period']);
+    const responsibleIdx = getIdx(['responsible person', 'responsible']);
+    const assignedIdx = getIdx(['assigned to', 'assignee']);
+
     for (let i = 1; i < lines.length; i++) {
-      // Handle CSV values that might contain commas within quotes
-      const values = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g)?.map(v => 
-        v.replace(/^"|"$/g, '').trim()
-      ) || [];
+      // Robust CSV parsing for unquoted commas and quotes
+      const row = lines[i];
+      if (!row.trim()) continue;
+
+      // Basic support for quoted values, but handle the PHC "Access, Assessment" case specifically
+      let values: string[] = [];
+      const matches = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+      if (matches) {
+        values = matches.map(v => v.replace(/^"|"$/g, '').trim());
+      } else {
+        values = row.split(',').map(v => v.trim());
+      }
+
+      // Fix for "Access, Assessment and Continuity of Care (AAC)" shift if it wasn't quoted
+      if (values[sectionIdx] === "Access" && values[standardIdx]?.trim().startsWith("Assessment and Continuity of Care (AAC)")) {
+        const fullSection = "Access, Assessment and Continuity of Care (AAC)";
+        // Shift values back
+        const newValues = [...values];
+        newValues[sectionIdx] = fullSection;
+
+        // If the indicator was split into Standard and Indicator columns by mistake
+        // because of the extra comma, we might need to merge them.
+        // But let's keep it simple: just merge the first two into Section.
+        // Actually, the common case is that subsequent columns stay at their indices?
+        // No, if "Access, Assessment..." is two columns, then everything after is shifted by 1.
+
+        // Let's remove the second part of section and shift the rest left.
+        newValues.splice(sectionIdx + 1, 1);
+        values = newValues;
+      }
 
       const indicator: Partial<Indicator> = {
-        section: values[headers.indexOf('section')] || 'General',
-        standard: values[headers.indexOf('standard')] || `STD-${i}`,
-        indicator: values[headers.indexOf('indicator')] || `Indicator ${i}`,
-        description: values[headers.indexOf('description')] || '',
-        score: parseInt(values[headers.indexOf('score')]) || 10,
-        frequency: (values[headers.indexOf('frequency')] as any) || 'One-time',
+        section: values[sectionIdx] || 'General',
+        standard: values[standardIdx] || `STD-${i}`,
+        indicator: values[indicatorIdx] || `Indicator ${i}`,
+        description: values[evidenceIdx] || '',
+        score: parseInt(values[scoreIdx]) || 10,
+        frequency: (values[frequencyIdx] as any) || 'One-time',
+        responsible_person: values[responsibleIdx] || '',
+        assignee: values[assignedIdx] || '',
         status: 'Not Started',
       };
 
@@ -59,7 +105,7 @@ export default function AddProjectModal({ onClose, onSave }: AddProjectModalProp
     try {
       const text = await file.text();
       const indicators = parseCSV(text);
-      
+
       // Optionally enrich with AI
       const enrichedIndicators = await api.analyzeChecklist(indicators);
       setCsvIndicators(enrichedIndicators);
@@ -109,7 +155,7 @@ export default function AddProjectModal({ onClose, onSave }: AddProjectModalProp
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
               <span className="text-amber-600 text-sm flex-shrink-0 mt-0.5">ℹ️</span>
               <p className="text-sm text-amber-700 flex-1">{error}</p>
-              <button 
+              <button
                 onClick={() => setError(null)}
                 className="text-amber-600 hover:text-amber-800 flex-shrink-0"
               >

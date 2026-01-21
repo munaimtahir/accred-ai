@@ -56,7 +56,7 @@ def _parse_frequency(raw: str) -> Optional[str]:
     return _FREQ_CANON.get(key)
 
 
-def _get_cols(row: dict) -> Tuple[str, str, str, str, str, str, str, str]:
+def _get_cols(row: dict) -> Tuple[str, str, str, str, str, str, str, str, str]:
     """
     Returns:
       section, standard, indicator, evidence_required, responsible_person,
@@ -64,16 +64,49 @@ def _get_cols(row: dict) -> Tuple[str, str, str, str, str, str, str, str]:
     """
     # The provided file uses these exact headers:
     # Section,Standard,Indicator,Evidence Required,Responsible Person,Frequency,Assigned to,Compliance Evidence,Score
+    
+    # Handle shifting columns due to "Access, Assessment and Continuity of Care (AAC)"
+    # If the CSV DictReader sees 'Access' as Section, it might put the rest in other columns.
+    section = _clean(row.get("Section"))
+    standard = _clean(row.get("Standard"))
+    indicator = _clean(row.get("Indicator"))
+    evidence_required = _clean(row.get("Evidence Required"))
+    responsible_person = _clean(row.get("Responsible Person"))
+    frequency = _clean(row.get("Frequency"))
+    assigned_to = _clean(row.get("Assigned to"))
+    compliance_evidence = _clean(row.get("Compliance Evidence"))
+    score = _clean(row.get("Score"))
+
+    # FIX for "Access, Assessment and Continuity of Care (AAC)" shift
+    if section == "Access" and standard.strip().startswith("Assessment and Continuity of Care (AAC)"):
+        # Shift everything back!
+        section = "Access, Assessment and Continuity of Care (AAC)"
+        # Indicator becomes Standard? Wait, let's look at the data.
+        # Original Row: Access, Assessment and Continuity... (AAC), Laboratory services...
+        # DictReader: Section='Access', Standard=' Assessment...', Indicator='Laboratory services...'
+        # So we want: Section='Access...', Standard='Laboratory services...', Indicator=next_col
+        # But wait, in the CSV row 98, there is NO next_col after 'Laboratory services...'.
+        # This implies 'Laboratory services...' was supposed to be the Standard AND the Indicator?
+        # Or maybe it was Standard='Laboratory services are easily accessible.' and Indicator='The laboratory’s location is easily accessible.'
+        # Let's check for dots.
+        parts = indicator.split('.', 1)
+        if len(parts) == 2:
+            standard = parts[0].strip() + "."
+            indicator = parts[1].strip()
+        else:
+            standard = indicator
+            indicator = indicator # Fallback
+            
     return (
-        _clean(row.get("Section")),
-        _clean(row.get("Standard")),
-        _clean(row.get("Indicator")),
-        _clean(row.get("Evidence Required")),
-        _clean(row.get("Responsible Person")),
-        _clean(row.get("Frequency")),
-        _clean(row.get("Assigned to")),
-        _clean(row.get("Compliance Evidence")),
-        _clean(row.get("Score")),
+        section,
+        standard,
+        indicator,
+        evidence_required,
+        responsible_person,
+        frequency,
+        assigned_to,
+        compliance_evidence,
+        score,
     )
 
 
@@ -176,9 +209,27 @@ class Command(BaseCommand):
                 score = _parse_int(score_raw, default=10)
 
                 description_parts = []
+                if indicator_text:
+                    description_parts.append(indicator_text)
                 if evidence_required:
                     description_parts.append(f"Evidence Required: {evidence_required}")
-                description = "\n".join(description_parts)
+                description = "\n\n".join(description_parts)
+
+                # Map "Evidence Required" to a basic form schema (Parameters) if requested
+                form_schema = None
+                if evidence_required:
+                    # Very basic split by newline or semicolon if present
+                    potential_params = re.split(r'[;\n\.]', evidence_required)
+                    form_schema = []
+                    for p in potential_params:
+                        p = p.strip()
+                        if p and len(p) > 5:
+                            form_schema.append({
+                                "name": re.sub(r'[^a-zA-Z0-9_]', '_', p[:30]).lower(),
+                                "label": p,
+                                "type": "text",
+                                "required": False
+                            })
 
                 notes_parts = []
                 # Keep original text fields around for easy audit/review
@@ -198,6 +249,7 @@ class Command(BaseCommand):
                         "frequency": frequency,
                         "assignee": assigned_to or None,
                         "notes": notes,
+                        "form_schema": form_schema,
                     },
                 )
 
@@ -224,6 +276,9 @@ class Command(BaseCommand):
                     if notes and obj.notes != notes:
                         obj.notes = notes
                         changed_fields.append("notes")
+                    if form_schema and obj.form_schema != form_schema:
+                        obj.form_schema = form_schema
+                        changed_fields.append("form_schema")
                     if changed_fields:
                         obj.save(update_fields=changed_fields)
                         updated += 1
