@@ -73,6 +73,7 @@ export default function Converter({ onImportProject }: ConverterProps) {
   const handleImportToProject = useCallback(() => {
     if (!csvContent || !projectName.trim()) return;
 
+    const lines = csvContent.trim().split('\n');
     // Improved header detection
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
     const getIdx = (names: string[]) => {
@@ -121,7 +122,7 @@ export default function Converter({ onImportProject }: ConverterProps) {
         description: values[evidenceIdx] || '',
         score: parseInt(values[scoreIdx]) || 10,
         frequency: (values[frequencyIdx] as any) || 'One-time',
-        responsible_person: (values[responsibleIdx] as any) || '',
+        responsiblePerson: values[responsibleIdx] || '',
         assignee: (values[assignedIdx] as any) || '',
         status: 'Not Started',
       };

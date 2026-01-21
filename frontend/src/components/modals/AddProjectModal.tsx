@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { X, Upload, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { CreateProjectData, Indicator } from '../../types';
 import { api } from '../../services/api';
+import { isAuthenticated } from '../../auth/tokens';
 
 interface AddProjectModalProps {
   onClose: () => void;
@@ -82,7 +83,7 @@ export default function AddProjectModal({ onClose, onSave }: AddProjectModalProp
         description: values[evidenceIdx] || '',
         score: parseInt(values[scoreIdx]) || 10,
         frequency: (values[frequencyIdx] as any) || 'One-time',
-        responsible_person: values[responsibleIdx] || '',
+        responsiblePerson: values[responsibleIdx] || '',
         assignee: values[assignedIdx] || '',
         status: 'Not Started',
       };
@@ -107,7 +108,12 @@ export default function AddProjectModal({ onClose, onSave }: AddProjectModalProp
       const indicators = parseCSV(text);
 
       // Optionally enrich with AI
-      const enrichedIndicators = await api.analyzeChecklist(indicators);
+      let enrichedIndicators = indicators;
+      if (isAuthenticated()) {
+        enrichedIndicators = await api.analyzeChecklist(indicators);
+      } else {
+        console.warn('AI features skipped: Sign in required.');
+      }
       setCsvIndicators(enrichedIndicators);
     } catch (error) {
       console.error('Failed to parse CSV:', error);
