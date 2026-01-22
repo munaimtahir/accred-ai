@@ -40,7 +40,7 @@ services:
       - media_volume:/app/media
     environment:
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-change-me-in-production}
-      - DEBUG=${DEBUG:-False}
+      - DEBUG=False
       - DATABASE_URL=postgresql://accredify_user:${DB_PASSWORD:-changeme}@db:5432/accredify
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-api.phc.alshifalab.pk,phc.alshifalab.pk,localhost,127.0.0.1,backend}

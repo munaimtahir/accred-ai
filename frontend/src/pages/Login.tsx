@@ -1,7 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { setDataMode, DataMode } from '../state/dataMode';
-import { User, Lock, ArrowRight, WifiOff, Loader2 } from 'lucide-react';
+import { User, Lock, ArrowRight, Loader2 } from 'lucide-react';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -25,12 +25,6 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleOfflineMode = () => {
-    // Set offline mode and trigger a page reload to re-evaluate App.tsx
-    setDataMode(DataMode.OFFLINE, false);
-    window.location.reload();
   };
 
   return (
@@ -123,26 +117,6 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="relative my-8">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-700/50"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 text-slate-500 bg-transparent backdrop-blur-xl">or continue with</span>
-            </div>
-          </div>
-
-          {/* Offline Mode */}
-          <button
-            type="button"
-            onClick={handleOfflineMode}
-            disabled={loading}
-            className="w-full flex items-center justify-center px-4 py-3 border border-slate-700 rounded-lg text-slate-300 hover:bg-white/5 hover:text-white hover:border-slate-600 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-700 focus:ring-offset-slate-900"
-          >
-            <WifiOff className="w-4 h-4 mr-2" />
-            Offline Demo Mode
-          </button>
         </div>
 
         {/* Footer */}

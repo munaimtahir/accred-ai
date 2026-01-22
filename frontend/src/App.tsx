@@ -535,8 +535,8 @@ function App() {
     );
   }
 
-  // Show login page if not authenticated AND not in offline mode
-  if (!isAuthenticated && !allowOfflineMode) {
+  // Show login page if not authenticated (Strict Enforcement)
+  if (!isAuthenticated) {
     return <Login />;
   }
 
