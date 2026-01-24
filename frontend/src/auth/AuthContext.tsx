@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { getAccessToken, getRefreshToken, setTokens, clearTokens } from './tokens';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export interface User {
   id: number;
@@ -124,11 +124,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       const data = await response.json();
-      
+
       // Store tokens
       if (data.access && data.refresh) {
         setTokens({ access: data.access, refresh: data.refresh });
-        
+
         // Set user from response (login returns user in response)
         if (data.user) {
           setUser(data.user);
