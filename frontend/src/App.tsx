@@ -25,6 +25,7 @@ import DeleteConfirmationModal from './components/modals/DeleteConfirmationModal
 import ImportOfflineDataModal from './components/modals/ImportOfflineDataModal';
 import SyncPanel from './components/SyncPanel';
 import LoadingSpinner from './components/LoadingSpinner';
+import AuditLogs from './components/AuditLogs';
 
 function App() {
   // Authentication
@@ -430,6 +431,17 @@ function App() {
       );
     }
 
+
+
+    // Phase 6: Ensure authentication for secure views
+    if (currentView === 'audit' && !user?.isStaff) {
+      return (
+        <div className="flex-1 flex items-center justify-center text-slate-500">
+          Not authorized
+        </div>
+      );
+    }
+
     switch (currentView) {
       case 'projects':
         return (
@@ -467,6 +479,16 @@ function App() {
               setDeleteTarget({ type: 'evidence', id });
               setShowDeleteModal(true);
             }}
+            onImportIndicators={async (file) => {
+              if (activeProject) {
+                try {
+                  await api.importIndicators(activeProject.id, file);
+                  await loadProjects(); // Refresh
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Import failed');
+                }
+              }
+            }}
             isOfflineFallback={isOfflineFallbackActive}
           />
         ) : null;
@@ -475,6 +497,7 @@ function App() {
         return activeProject ? (
           <UpcomingTasks
             indicators={activeIndicators}
+            projectId={activeProject.id}
             onQuickLog={handleQuickLog}
             onAddEvidence={handleOpenEvidenceModal}
           />
@@ -520,6 +543,9 @@ function App() {
             onImportProject={handleSaveProject}
           />
         );
+
+      case 'audit':
+        return <AuditLogs />;
 
       default:
         return null;

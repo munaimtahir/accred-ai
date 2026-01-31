@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
-import { 
-  ChevronDown, 
-  ChevronRight, 
-  Plus, 
-  Check, 
-  X, 
+import {
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Check,
+  X,
   FileText,
   Bot,
   Filter,
@@ -26,10 +26,11 @@ interface ChecklistProps {
   onQuickLog: (id: string) => void;
   onAddEvidence: (indicatorId: string) => void;
   onDeleteEvidence: (evidenceId: string) => void;
+  onImportIndicators?: (file: File) => Promise<void>;
   isOfflineFallback?: boolean;
 }
 
-type TabType = 'all' | 'action' | 'aiReview' | 'aiAssisted' | 'compliant' | 'frequency' 
+type TabType = 'all' | 'action' | 'aiReview' | 'aiAssisted' | 'compliant' | 'frequency'
   | 'noEvidence' | 'evidencePending' | 'evidenceComplete' | 'textEvidence' | 'fileEvidence' | 'frequencyEvidence';
 
 const TABS: { id: TabType; label: string }[] = [
@@ -61,6 +62,7 @@ export default function Checklist({
   onQuickLog,
   onAddEvidence,
   onDeleteEvidence,
+  onImportIndicators,
   isOfflineFallback = false,
 }: ChecklistProps) {
   const [activeTab, setActiveTab] = useState<TabType>('all');
@@ -82,17 +84,17 @@ export default function Checklist({
     // Tab filter
     switch (activeTab) {
       case 'action':
-        filtered = filtered.filter(i => 
+        filtered = filtered.filter(i =>
           i.status === 'Non-Compliant' || i.status === 'Not Started'
         );
         break;
       case 'aiReview':
-        filtered = filtered.filter(i => 
+        filtered = filtered.filter(i =>
           i.isAICompleted && !i.isHumanVerified
         );
         break;
       case 'aiAssisted':
-        filtered = filtered.filter(i => 
+        filtered = filtered.filter(i =>
           i.aiCategorization === 'ai_assisted'
         );
         break;
@@ -104,19 +106,19 @@ export default function Checklist({
         break;
       // Phase 6: Evidence-centric filters
       case 'noEvidence':
-        filtered = filtered.filter(i => 
+        filtered = filtered.filter(i =>
           i.evidenceState === 'no_evidence' || (!i.evidenceState && (!i.evidence || i.evidence.length === 0))
         );
         break;
       case 'evidencePending':
-        filtered = filtered.filter(i => 
-          i.evidenceState === 'partial_evidence' || 
+        filtered = filtered.filter(i =>
+          i.evidenceState === 'partial_evidence' ||
           i.evidenceState === 'review_pending' ||
           i.evidenceState === 'rejected'
         );
         break;
       case 'evidenceComplete':
-        filtered = filtered.filter(i => 
+        filtered = filtered.filter(i =>
           i.evidenceState === 'accepted' || i.evidenceState === 'evidence_complete'
         );
         break;
@@ -139,7 +141,7 @@ export default function Checklist({
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(i => 
+      filtered = filtered.filter(i =>
         i.indicator.toLowerCase().includes(query) ||
         i.standard.toLowerCase().includes(query) ||
         i.description.toLowerCase().includes(query)
@@ -183,8 +185,8 @@ export default function Checklist({
 
   const handleBulkApprove = () => {
     selectedIds.forEach(id => {
-      onUpdateIndicator(id, { 
-        status: 'Compliant', 
+      onUpdateIndicator(id, {
+        status: 'Compliant',
         isHumanVerified: true,
         lastUpdated: new Date().toISOString()
       });
@@ -213,6 +215,34 @@ export default function Checklist({
             {filteredIndicators.length} of {indicators.length} indicators
           </p>
         </div>
+
+        {/* Import Action */}
+        {onImportIndicators && (
+          <div>
+            <input
+              type="file"
+              accept=".csv"
+              className="hidden"
+              id="import-indicators-input"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  onImportIndicators(file).finally(() => {
+                    if (e.target) e.target.value = ''; // Reset
+                  });
+                }
+              }}
+            />
+            <label
+              htmlFor="import-indicators-input"
+              className={`flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer ${isOfflineFallback ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
+                }`}
+            >
+              <Cloud size={16} />
+              Import CSV
+            </label>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -221,11 +251,10 @@ export default function Checklist({
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-              activeTab === tab.id
-                ? 'bg-indigo-600 text-white'
-                : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
-            }`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${activeTab === tab.id
+              ? 'bg-indigo-600 text-white'
+              : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+              }`}
           >
             {tab.label}
           </button>
@@ -363,18 +392,18 @@ function IndicatorCard({
   const syncState = isOfflineFallback || !isServerReachable
     ? (hasUnsynced ? 'unsynced' : 'synced')
     : 'synced';
-  
+
   // Phase 6: Check evidence state and completeness
   const evidenceCount = indicator.evidence?.length || 0;
-  const evidenceState: EvidenceState = indicator.evidenceState || 
+  const evidenceState: EvidenceState = indicator.evidenceState ||
     (evidenceCount === 0 ? 'no_evidence' : 'partial_evidence');
   const isCompleted = ['Compliant', 'Completed', 'Done'].includes(indicator.status);
-  
+
   // Block completion if evidence incomplete (online only)
-  const canComplete = isOfflineFallback || !isServerReachable || 
+  const canComplete = isOfflineFallback || !isServerReachable ||
     evidenceState === 'accepted' || evidenceState === 'evidence_complete';
   const evidenceBlocked = !isOfflineFallback && isServerReachable && !canComplete;
-  
+
   // Get evidence type label
   const getEvidenceTypeLabel = (type?: string) => {
     switch (type) {
@@ -384,7 +413,7 @@ function IndicatorCard({
       default: return 'Evidence';
     }
   };
-  
+
   // Get evidence state label and color
   const getEvidenceStateInfo = (state: EvidenceState) => {
     switch (state) {
@@ -403,12 +432,11 @@ function IndicatorCard({
         return { label: 'Evidence Pending', color: 'text-slate-600 bg-slate-50' };
     }
   };
-  
+
   const evidenceStateInfo = getEvidenceStateInfo(evidenceState);
   return (
-    <div className={`bg-white rounded-xl border transition-all ${
-      isSelected ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-slate-200'
-    }`}>
+    <div className={`bg-white rounded-xl border transition-all ${isSelected ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-slate-200'
+      }`}>
       {/* Header */}
       <div className="flex items-center gap-4 p-4">
         <input
@@ -417,11 +445,11 @@ function IndicatorCard({
           onChange={onToggleSelect}
           className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
         />
-        
+
         <button onClick={onToggleExpand} className="text-slate-400 hover:text-slate-600">
           {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
         </button>
-        
+
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
@@ -464,7 +492,7 @@ function IndicatorCard({
           </div>
           <h4 className="font-medium text-slate-900 truncate">{indicator.indicator}</h4>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${getStatusColor(indicator.status)}`}>
             {indicator.status}
@@ -472,7 +500,7 @@ function IndicatorCard({
           <span className="text-sm font-medium text-slate-500">{indicator.score} pts</span>
         </div>
       </div>
-      
+
       {/* Expanded Content */}
       {isExpanded && (
         <div className="border-t border-slate-100 p-4 space-y-4 animate-fade-in">
@@ -483,7 +511,7 @@ function IndicatorCard({
             </label>
             <p className="text-sm text-slate-600 mt-1">{indicator.description || 'No description'}</p>
           </div>
-          
+
           {/* Status and Details */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -502,20 +530,19 @@ function IndicatorCard({
                       return;
                     }
                   }
-                  onUpdateIndicator(indicator.id, { 
+                  onUpdateIndicator(indicator.id, {
                     status: newStatus,
                     lastUpdated: new Date().toISOString()
                   });
                 }}
-                className={`mt-1 w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                  evidenceBlocked && ['Compliant'].includes(indicator.status)
-                    ? 'border-red-300 bg-red-50'
-                    : 'border-slate-200'
-                }`}
+                className={`mt-1 w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${evidenceBlocked && ['Compliant'].includes(indicator.status)
+                  ? 'border-red-300 bg-red-50'
+                  : 'border-slate-200'
+                  }`}
               >
                 {STATUS_OPTIONS.map(status => (
-                  <option 
-                    key={status} 
+                  <option
+                    key={status}
                     value={status}
                     disabled={evidenceBlocked && status === 'Compliant'}
                   >
@@ -524,7 +551,7 @@ function IndicatorCard({
                 ))}
               </select>
             </div>
-            
+
             <div>
               <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
                 Assignee
@@ -537,7 +564,7 @@ function IndicatorCard({
                 className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
-            
+
             <div>
               <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
                 Frequency
@@ -545,7 +572,7 @@ function IndicatorCard({
               <p className="mt-1 text-sm text-slate-600">{indicator.frequency || 'One-time'}</p>
             </div>
           </div>
-          
+
           {/* Notes */}
           <div>
             <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
@@ -559,7 +586,7 @@ function IndicatorCard({
               className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
           </div>
-          
+
           {/* Evidence */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -580,7 +607,7 @@ function IndicatorCard({
                 Add Evidence
               </button>
             </div>
-            
+
             {/* Phase 6: Evidence Completeness Warning */}
             {evidenceBlocked && (
               <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -591,11 +618,11 @@ function IndicatorCard({
                       Evidence Required
                     </p>
                     <p className="text-xs text-red-700 mt-1">
-                      {evidenceState === 'no_evidence' 
+                      {evidenceState === 'no_evidence'
                         ? 'This indicator requires evidence before it can be completed.'
                         : evidenceState === 'rejected'
-                        ? 'Evidence has been rejected. Please add new evidence before completing.'
-                        : 'Evidence is incomplete or pending review. Please ensure all evidence is accepted.'}
+                          ? 'Evidence has been rejected. Please add new evidence before completing.'
+                          : 'Evidence is incomplete or pending review. Please ensure all evidence is accepted.'}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {indicator.evidenceType === 'text' && (
@@ -627,13 +654,13 @@ function IndicatorCard({
                 </div>
               </div>
             )}
-            
+
             {indicator.evidence.length > 0 ? (
               <div className="space-y-2">
                 {indicator.evidence.map(evidence => (
-                  <EvidenceItem 
-                    key={evidence.id} 
-                    evidence={evidence} 
+                  <EvidenceItem
+                    key={evidence.id}
+                    evidence={evidence}
                     onDelete={() => onDeleteEvidence(evidence.id)}
                   />
                 ))}
@@ -642,7 +669,7 @@ function IndicatorCard({
               <p className="text-sm text-slate-400 italic">No evidence attached</p>
             )}
           </div>
-          
+
           {/* AI Analysis */}
           {indicator.aiAnalysis && (
             <div className="bg-indigo-50 rounded-lg p-4">
@@ -658,27 +685,26 @@ function IndicatorCard({
               </p>
             </div>
           )}
-          
+
           {/* Actions */}
           <div className="flex items-center gap-3 pt-2">
             <button
               onClick={() => onQuickLog(indicator.id)}
               disabled={evidenceBlocked}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors ${
-                evidenceBlocked
-                  ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                  : 'bg-green-600 text-white hover:bg-green-700'
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors ${evidenceBlocked
+                ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
               title={evidenceBlocked ? 'Evidence is required before this indicator can be completed.' : 'Mark as Compliant'}
             >
               <Check size={16} />
               Mark Compliant
             </button>
-            
+
             {indicator.isAICompleted && !indicator.isHumanVerified && (
               <>
                 <button
-                  onClick={() => onUpdateIndicator(indicator.id, { 
+                  onClick={() => onUpdateIndicator(indicator.id, {
                     isHumanVerified: true,
                     lastUpdated: new Date().toISOString()
                   })}
@@ -688,7 +714,7 @@ function IndicatorCard({
                   Approve AI Work
                 </button>
                 <button
-                  onClick={() => onUpdateIndicator(indicator.id, { 
+                  onClick={() => onUpdateIndicator(indicator.id, {
                     isAICompleted: false,
                     status: 'Not Started'
                   })}
@@ -723,7 +749,7 @@ function EvidenceItem({ evidence, onDelete }: EvidenceItemProps) {
   const driveLink = evidence.driveWebViewLink || evidence.driveViewLink;
   const isDriveLinked = evidence.attachmentProvider === 'gdrive' && evidence.driveFileId;
   const isPending = evidence.attachmentStatus === 'pending';
-  
+
   // Phase 6: Review state display
   const reviewState = evidence.reviewState || 'draft';
   const getReviewStateBadge = () => {

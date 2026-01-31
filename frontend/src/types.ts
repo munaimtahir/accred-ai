@@ -1,65 +1,66 @@
 // Enums
-export type ComplianceStatus = 
-  | 'Not Started' 
-  | 'In Progress' 
-  | 'Compliant' 
-  | 'Non-Compliant' 
+export type ComplianceStatus =
+  | 'Not Started'
+  | 'In Progress'
+  | 'Compliant'
+  | 'Non-Compliant'
   | 'Not Applicable';
 
-export type Frequency = 
-  | 'One-time' 
-  | 'Daily' 
-  | 'Weekly' 
-  | 'Monthly' 
-  | 'Quarterly' 
+export type Frequency =
+  | 'One-time'
+  | 'Daily'
+  | 'Weekly'
+  | 'Monthly'
+  | 'Quarterly'
   | 'Annually';
 
-export type EvidenceType = 
-  | 'document' 
-  | 'image' 
-  | 'certificate' 
-  | 'note' 
+export type EvidenceType =
+  | 'document'
+  | 'image'
+  | 'certificate'
+  | 'note'
   | 'link';
 
-export type IndicatorEvidenceType = 
-  | 'text' 
-  | 'file' 
+export type IndicatorEvidenceType =
+  | 'text'
+  | 'file'
   | 'frequency';
 
-export type EvidenceReviewState = 
-  | 'draft' 
-  | 'under_review' 
-  | 'accepted' 
+export type EvidenceReviewState =
+  | 'draft'
+  | 'under_review'
+  | 'accepted'
   | 'rejected';
 
-export type EvidenceState = 
-  | 'no_evidence' 
-  | 'partial_evidence' 
-  | 'evidence_complete' 
-  | 'review_pending' 
-  | 'accepted' 
+export type EvidenceState =
+  | 'no_evidence'
+  | 'partial_evidence'
+  | 'evidence_complete'
+  | 'review_pending'
+  | 'accepted'
   | 'rejected';
 
-export type AICategorization = 
-  | 'ai_fully_manageable' 
-  | 'ai_assisted' 
+export type AICategorization =
+  | 'ai_fully_manageable'
+  | 'ai_assisted'
   | 'manual';
 
-export type SyncStatus = 
-  | 'synced' 
-  | 'pending' 
+export type SyncStatus =
+  | 'synced'
+  | 'pending'
   | 'error';
 
-export type View = 
-  | 'projects' 
-  | 'dashboard' 
-  | 'checklist' 
-  | 'reports' 
-  | 'ai' 
-  | 'converter' 
-  | 'analysis' 
-  | 'library' 
-  | 'upcoming';
+export type View =
+  | 'projects'
+  | 'dashboard'
+  | 'checklist'
+  | 'reports'
+  | 'ai'
+  | 'converter'
+  | 'analysis'
+  | 'library'
+  | 'upcoming'
+  | 'audit';
 
 // Interfaces
 export interface FormField {

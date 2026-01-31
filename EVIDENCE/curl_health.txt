@@ -1,0 +1,16 @@
+HTTP/2 500 
+alt-svc: h3=":443"; ma=2592000
+content-type: text/html
+via: 1.1 Caddy
+content-length: 141
+date: Sat, 31 Jan 2026 22:40:09 GMT
+
+<html>
+  <head>
+    <title>Internal Server Error</title>
+  </head>
+  <body>
+    <h1><p>Internal Server Error</p></h1>
+    
+  </body>
+</html>

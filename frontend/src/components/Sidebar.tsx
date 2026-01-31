@@ -1,10 +1,10 @@
-import { 
-  LayoutDashboard, 
-  CheckSquare, 
-  Calendar, 
-  FolderOpen, 
-  MessageSquare, 
-  FileText, 
+import {
+  LayoutDashboard,
+  CheckSquare,
+  Calendar,
+  FolderOpen,
+  MessageSquare,
+  FileText,
   FileSpreadsheet,
   Bot,
   ChevronDown,
@@ -40,6 +40,7 @@ interface NavItem {
   label: string;
   icon: React.ReactNode;
   requiresProject?: boolean;
+  requiresAdmin?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -52,6 +53,7 @@ const navItems: NavItem[] = [
   { id: 'ai', label: 'AI Assistant', icon: <MessageSquare size={20} /> },
   { id: 'reports', label: 'Reports', icon: <FileText size={20} />, requiresProject: true },
   { id: 'converter', label: 'Doc Converter', icon: <FileSpreadsheet size={20} /> },
+  { id: 'audit', label: 'Audit Logs', icon: <FileText size={20} />, requiresAdmin: true },
 ];
 
 export default function Sidebar({
@@ -71,10 +73,9 @@ export default function Sidebar({
   const isOnline = dataMode === DataMode.ONLINE;
 
   return (
-    <aside 
-      className={`fixed left-0 top-0 h-full bg-white border-r border-slate-200 flex flex-col transition-all duration-300 z-50 ${
-        collapsed ? 'w-20' : 'w-72'
-      }`}
+    <aside
+      className={`fixed left-0 top-0 h-full bg-white border-r border-slate-200 flex flex-col transition-all duration-300 z-50 ${collapsed ? 'w-20' : 'w-72'
+        }`}
     >
       {/* Logo/Brand */}
       <div className="p-4 border-b border-slate-200">
@@ -123,9 +124,9 @@ export default function Sidebar({
                 </option>
               ))}
             </select>
-            <ChevronDown 
-              size={16} 
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" 
+            <ChevronDown
+              size={16}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
             />
           </div>
           {activeProject && (
@@ -139,9 +140,11 @@ export default function Sidebar({
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
+          if (item.requiresAdmin && !user?.isStaff) return null;
+
           const isActive = currentView === item.id;
           const isDisabled = item.requiresProject && !isProjectActive;
-          
+
           return (
             <button
               key={item.id}
@@ -149,8 +152,8 @@ export default function Sidebar({
               disabled={isDisabled}
               className={`
                 w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all
-                ${isActive 
-                  ? 'bg-indigo-50 text-indigo-600 font-medium' 
+                ${isActive
+                  ? 'bg-indigo-50 text-indigo-600 font-medium'
                   : isDisabled
                     ? 'text-slate-300 cursor-not-allowed'
                     : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -172,11 +175,10 @@ export default function Sidebar({
       <div className="p-4 border-t border-slate-200 space-y-2">
         {/* Mode Indicator */}
         {!collapsed && (
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-2 ${
-            isOnline 
-              ? 'bg-green-50 text-green-700' 
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-2 ${isOnline
+              ? 'bg-green-50 text-green-700'
               : 'bg-amber-50 text-amber-700'
-          }`}>
+            }`}>
             {isOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium">
@@ -189,15 +191,14 @@ export default function Sidebar({
           </div>
         )}
         {collapsed && (
-          <div className={`flex justify-center p-2 rounded-lg mb-2 ${
-            isOnline 
-              ? 'bg-green-50 text-green-700' 
+          <div className={`flex justify-center p-2 rounded-lg mb-2 ${isOnline
+              ? 'bg-green-50 text-green-700'
               : 'bg-amber-50 text-amber-700'
-          }`}>
+            }`}>
             {isOnline ? <Wifi size={18} /> : <WifiOff size={18} />}
           </div>
         )}
-        
+
         {!collapsed && user && (
           <div className="flex items-center gap-3 px-3 py-2 text-slate-600 mb-2">
             <User size={18} />

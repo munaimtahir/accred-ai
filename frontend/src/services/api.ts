@@ -664,6 +664,53 @@ export const api = {
       throw createNetworkError('Analyzing tasks', error);
     }
   },
+
+  // Import Indicators (CSV)
+  async importIndicators(projectId: string, file: File): Promise<void> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      await apiRequest<void>(`/projects/${projectId}/import-indicators/`, {
+        method: 'POST',
+        body: formData,
+      });
+    } catch (error) {
+      throw createNetworkError('Importing indicators', error);
+    }
+  },
+
+  // Upcoming Tasks (Backend)
+  async getUpcoming(projectId: string): Promise<any[]> {
+    try {
+      return await apiRequest<any[]>(`/projects/${projectId}/upcoming/`);
+    } catch (error) {
+      if (shouldFallbackToLocalStorage()) {
+        return [];
+      }
+      throw createNetworkError('Loading upcoming tasks', error);
+    }
+  },
+
+  // Audit Logs (Admin)
+  async getAuditLogs(): Promise<any[]> {
+    try {
+      return await apiRequest<any[]>('/audit-logs/');
+    } catch (error) {
+      throw createNetworkError('Loading audit logs', error);
+    }
+  },
+
+  // User Info
+  async getUserInfo(): Promise<any> {
+    try {
+      return await apiRequest<any>('/auth/me/');
+    } catch (error) {
+      if (shouldFallbackToLocalStorage()) {
+        return null;
+      }
+      throw createNetworkError('Loading user info', error);
+    }
+  }
 };
 
 export default api;

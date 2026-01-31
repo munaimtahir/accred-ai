@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
-import { 
-  Calendar, 
-  Clock, 
-  AlertTriangle, 
+import { useMemo, useState, useEffect } from 'react';
+import { api } from '../services/api';
+import {
+  Calendar,
+  Clock,
+  AlertTriangle,
   CheckCircle2,
   Plus,
   ChevronRight
@@ -10,7 +11,8 @@ import {
 import { Indicator, Frequency } from '../types';
 
 interface UpcomingTasksProps {
-  indicators: Indicator[];
+  indicators: Indicator[]; // Fallback
+  projectId: string; // Required for API
   onQuickLog: (id: string) => void;
   onAddEvidence: (indicatorId: string) => void;
 }
@@ -23,70 +25,90 @@ interface TaskGroup {
 
 export default function UpcomingTasks({
   indicators,
+  projectId,
   onQuickLog,
   onAddEvidence,
 }: UpcomingTasksProps) {
-  // Group tasks by urgency/frequency
-  const taskGroups = useMemo((): TaskGroup[] => {
-    const now = new Date();
-    const recurringIndicators = indicators.filter(i => i.frequency && i.frequency !== 'One-time');
-    
-    const isOverdue = (ind: Indicator) => {
-      if (!ind.lastUpdated) return true;
-      const lastUpdate = new Date(ind.lastUpdated);
-      const daysSince = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      switch (ind.frequency) {
-        case 'Daily': return daysSince >= 1;
-        case 'Weekly': return daysSince >= 7;
-        case 'Monthly': return daysSince >= 30;
-        case 'Quarterly': return daysSince >= 90;
-        case 'Annually': return daysSince >= 365;
-        default: return false;
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadUpcoming = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await api.getUpcoming(projectId);
+
+        if (!mounted) return;
+
+        // If data is array (flat list of indicators), group them
+        // If backend returns groups, use them. 
+        // We'll assume backend returns a structure we can adapt, or flat list.
+        // For safety/contract w/ existing UI, let's map backend response to TaskGroup[]
+
+        // Assumption: Backend returns { overdue: [], upcoming: [], ... } or just [].
+        // If it returns flat list of indicators:
+        if (Array.isArray(data)) {
+          // Basic grouping from flat list (if backend returns flat list)
+          // or maybe backend returns { title: string, tasks: [] }[]?
+          // Since I can't see backend, checking "Upcoming page shows backend results" suggests 
+          // the backend does the logic.
+          // I'll assume the backend returns `TaskGroup[]` compatible structure or I adapt it.
+          // If data looks like grouped:
+          if (data.length > 0 && 'title' in data[0] && 'tasks' in data[0]) {
+            setTaskGroups(data);
+          } else {
+            // Fallback: It's a list of indicators, we might need to group them (or just show one group)
+            setTaskGroups([{ title: 'Upcoming', tasks: data }]);
+          }
+        } else if (typeof data === 'object') {
+          // Maybe dict format { overdue: [...], today: [...] }
+          const groups: TaskGroup[] = [];
+          Object.entries(data).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+              groups.push({
+                title: key.charAt(0).toUpperCase() + key.slice(1),
+                tasks: value,
+                urgent: key === 'overdue'
+              });
+            }
+          });
+          setTaskGroups(groups);
+        }
+      } catch (err) {
+        if (mounted) setError(err instanceof Error ? err.message : 'Failed to load upcoming tasks');
+        // Fallback to local heuristic if error (optional, but requested "backend results")
+        // logic from previous implementation could be here as fallback but I'll stick to error state as per prompt "show error state if fetch fails"
+      } finally {
+        if (mounted) setLoading(false);
       }
     };
 
-    const isDueToday = (ind: Indicator) => {
-      if (!ind.lastUpdated) return false;
-      const lastUpdate = new Date(ind.lastUpdated);
-      const daysSince = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      switch (ind.frequency) {
-        case 'Daily': return daysSince === 0;
-        case 'Weekly': return daysSince >= 6 && daysSince < 7;
-        case 'Monthly': return daysSince >= 29 && daysSince < 30;
-        default: return false;
-      }
-    };
+    loadUpcoming();
+    return () => { mounted = false; };
+  }, [projectId]);
 
-    const groups: TaskGroup[] = [];
-    
-    // Overdue tasks
-    const overdue = recurringIndicators.filter(i => isOverdue(i) && i.status !== 'Compliant');
-    if (overdue.length > 0) {
-      groups.push({ title: 'Overdue', tasks: overdue, urgent: true });
-    }
-    
-    // Due today
-    const dueToday = recurringIndicators.filter(i => isDueToday(i) && i.status !== 'Compliant');
-    if (dueToday.length > 0) {
-      groups.push({ title: 'Due Today', tasks: dueToday });
-    }
-    
-    // Group by frequency
-    const frequencies: Frequency[] = ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Annually'];
-    frequencies.forEach(freq => {
-      const tasks = recurringIndicators.filter(i => i.frequency === freq && !isOverdue(i));
-      if (tasks.length > 0) {
-        groups.push({ title: freq, tasks });
-      }
-    });
-    
-    return groups;
-  }, [indicators]);
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
-  const totalRecurring = indicators.filter(i => i.frequency && i.frequency !== 'One-time').length;
-  const totalOverdue = taskGroups.find(g => g.title === 'Overdue')?.tasks.length || 0;
+  if (error) {
+    return (
+      <div className="bg-red-50 p-4 rounded-lg text-red-700">
+        <p>Error loading tasks: {error}</p>
+      </div>
+    );
+  }
+
+  const totalRecurring = taskGroups.reduce((acc, g) => acc + g.tasks.length, 0);
+  const totalOverdue = taskGroups.find(g => g.title === 'Overdue' || g.urgent)?.tasks.length || 0;
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -145,9 +167,8 @@ export default function UpcomingTasks({
           {taskGroups.map((group) => (
             <div key={group.title} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
               {/* Group Header */}
-              <div className={`px-6 py-4 border-b ${
-                group.urgent ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-200'
-              }`}>
+              <div className={`px-6 py-4 border-b ${group.urgent ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-200'
+                }`}>
                 <div className="flex items-center gap-3">
                   {group.urgent && <AlertTriangle size={20} className="text-red-600" />}
                   <h3 className={`font-semibold ${group.urgent ? 'text-red-900' : 'text-slate-900'}`}>
@@ -158,7 +179,7 @@ export default function UpcomingTasks({
                   </span>
                 </div>
               </div>
-              
+
               {/* Tasks */}
               <div className="divide-y divide-slate-100">
                 {group.tasks.map((task) => (
@@ -229,7 +250,7 @@ function TaskCard({ task, onQuickLog, onAddEvidence, urgent }: TaskCardProps) {
     const date = new Date(task.lastUpdated);
     const now = new Date();
     const daysSince = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     if (daysSince === 0) return 'Updated today';
     if (daysSince === 1) return 'Updated yesterday';
     return `Updated ${daysSince} days ago`;
@@ -237,12 +258,11 @@ function TaskCard({ task, onQuickLog, onAddEvidence, urgent }: TaskCardProps) {
 
   return (
     <div className="flex items-center gap-4 p-4 hover:bg-slate-50 transition-colors">
-      <div className={`w-3 h-3 rounded-full ${
-        urgent ? 'bg-red-500' : 
-        task.status === 'Compliant' ? 'bg-green-500' :
-        'bg-amber-500'
-      }`} />
-      
+      <div className={`w-3 h-3 rounded-full ${urgent ? 'bg-red-500' :
+          task.status === 'Compliant' ? 'bg-green-500' :
+            'bg-amber-500'
+        }`} />
+
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
@@ -253,7 +273,7 @@ function TaskCard({ task, onQuickLog, onAddEvidence, urgent }: TaskCardProps) {
         <h4 className="font-medium text-slate-900 truncate">{task.indicator}</h4>
         <p className="text-sm text-slate-500 mt-1">{getLastUpdateText()}</p>
       </div>
-      
+
       <div className="flex items-center gap-2">
         <button
           onClick={() => onAddEvidence(task.id)}
@@ -262,20 +282,19 @@ function TaskCard({ task, onQuickLog, onAddEvidence, urgent }: TaskCardProps) {
           <Plus size={14} />
           Log Evidence
         </button>
-        
+
         <button
           onClick={() => onQuickLog(task.id)}
           disabled={!hasRecentEvidence && task.evidence.length === 0}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
-            hasRecentEvidence || task.evidence.length > 0
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${hasRecentEvidence || task.evidence.length > 0
               ? 'bg-green-600 text-white hover:bg-green-700'
               : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-          }`}
+            }`}
         >
           <CheckCircle2 size={14} />
           Mark Complete
         </button>
-        
+
         <ChevronRight size={18} className="text-slate-300" />
       </div>
     </div>

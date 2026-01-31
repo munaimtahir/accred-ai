@@ -1,0 +1,15 @@
+HTTP/2 403 
+allow: GET, POST, HEAD, OPTIONS
+alt-svc: h3=":443"; ma=2592000
+content-type: application/json
+cross-origin-opener-policy: same-origin
+date: Sat, 31 Jan 2026 22:40:09 GMT
+referrer-policy: same-origin
+server: gunicorn
+vary: Accept, Cookie, origin
+via: 1.1 Caddy
+x-content-type-options: nosniff
+x-frame-options: DENY
+content-length: 58
+
+{"detail":"Authentication credentials were not provided."}

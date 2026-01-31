@@ -1,0 +1,11 @@
+HTTP/2 200 
+accept-ranges: bytes
+alt-svc: h3=":443"; ma=2592000
+content-type: text/html
+date: Sat, 31 Jan 2026 22:40:09 GMT
+etag: "697c8158-133"
+last-modified: Fri, 30 Jan 2026 10:00:56 GMT
+server: nginx/1.25.5
+via: 1.1 Caddy
+content-length: 307
+
