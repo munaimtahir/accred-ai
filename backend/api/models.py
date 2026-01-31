@@ -1,13 +1,37 @@
-import uuid
 from django.db import models
 from django.contrib.auth.models import User
+import uuid
+
+class AuditAction(models.TextChoices):
+  CREATE="CREATE","Create"
+  UPDATE="UPDATE","Update"
+  REVOKE="REVOKE","Revoke"
+  DELETE="DELETE","Delete"
+  IMPORT="IMPORT","Import"
+  EXPORT_SNAPSHOT="EXPORT_SNAPSHOT","Export Snapshot"
+  LOGIN="LOGIN","Login"
+  LOGOUT="LOGOUT","Logout"
+
+class AuditLog(models.Model):
+  id=models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+  timestamp=models.DateTimeField(auto_now_add=True)
+  actor=models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="audit_logs")
+  action=models.CharField(max_length=32, choices=AuditAction.choices)
+  entity_type=models.CharField(max_length=255)
+  entity_id=models.CharField(max_length=255)
+  summary=models.TextField()
+  ip_address=models.GenericIPAddressField(null=True, blank=True)
+  user_agent=models.TextField(null=True, blank=True)
+  before=models.JSONField(null=True, blank=True)
+  after=models.JSONField(null=True, blank=True)
+  metadata=models.JSONField(null=True, blank=True)
 
 
 class UserRole(models.TextChoices):
     """User roles for role-based access control"""
     ADMIN = 'admin', 'Administrator'
-    PROJECT_MANAGER = 'project_manager', 'Project Manager'
-    MEMBER = 'member', 'Member'
+    CONTRIBUTOR = 'contributor', 'Contributor'
+    REVIEWER = 'reviewer', 'Reviewer'
 
 
 class UserProfile(models.Model):
@@ -16,7 +40,7 @@ class UserProfile(models.Model):
     role = models.CharField(
         max_length=20,
         choices=UserRole.choices,
-        default=UserRole.MEMBER
+        default=UserRole.CONTRIBUTOR
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -32,8 +56,12 @@ class UserProfile(models.Model):
         return self.role == UserRole.ADMIN
 
     @property
-    def is_project_manager(self):
-        return self.role == UserRole.PROJECT_MANAGER
+    def is_contributor(self):
+        return self.role == UserRole.CONTRIBUTOR
+    
+    @property
+    def is_reviewer(self):
+        return self.role == UserRole.REVIEWER
 
 
 class ComplianceStatus(models.TextChoices):
@@ -180,7 +208,25 @@ class Indicator(models.Model):
         default=IndicatorEvidenceType.TEXT,
         help_text='Evidence model type for this indicator'
     )
-
+    
+    # Phase 3: Scheduling
+    SCHEDULE_TYPE_CHOICES = [
+        ('one_time', 'One Time'),
+        ('recurring', 'Recurring'),
+    ]
+    schedule_type = models.CharField(max_length=20, choices=SCHEDULE_TYPE_CHOICES, default='one_time')
+    next_due_date = models.DateField(null=True, blank=True)
+    
+    # Phase 2: Import Idempotency
+    indicator_key = models.CharField(
+        max_length=64, 
+        unique=True, 
+        null=True, 
+        blank=True, 
+        db_index=True,
+        help_text="Hash for idempotent imports"
+    )
+    
     class Meta:
         ordering = ['section', 'standard']
         indexes = [
@@ -188,10 +234,30 @@ class Indicator(models.Model):
             models.Index(fields=['status']),
             models.Index(fields=['frequency']),
             models.Index(fields=['ai_categorization']),
+            models.Index(fields=['indicator_key']),  # Added index
         ]
 
     def __str__(self):
         return f"{self.standard}: {self.indicator}"
+
+    # Added for CSV Import Idempotency
+    def save(self, *args, **kwargs):
+        if not self.indicator_key:
+            self.indicator_key = self.generate_indicator_key()
+        super().save(*args, **kwargs)
+
+    def generate_indicator_key(self):
+        """Generate deterministic key for idempotent imports."""
+        import hashlib
+        key_string = f"{self.project_id}:{self.section}:{self.standard}:{self.indicator}"
+        return hashlib.sha256(key_string.encode()).hexdigest()
+
+    @staticmethod
+    def generate_indicator_key_static(project_id, section, standard, indicator):
+        """Generate deterministic key for idempotent imports (static version)."""
+        import hashlib
+        key_string = f"{project_id}:{section}:{standard}:{indicator}"
+        return hashlib.sha256(key_string.encode()).hexdigest()
     
     def get_evidence_state(self):
         """
@@ -239,13 +305,49 @@ class Indicator(models.Model):
             elif self.evidence_type == IndicatorEvidenceType.FREQUENCY:
                 # Frequency-based: need evidence for current cycle
                 # For now, any accepted evidence is sufficient
-                # TODO: Add cycle-specific checking when frequency tracking is enhanced
                 if accepted_evidence.exists():
                     return EvidenceState.ACCEPTED
                 return EvidenceState.PARTIAL_EVIDENCE
         
         # Has evidence but not accepted
         return EvidenceState.PARTIAL_EVIDENCE
+
+
+class EvidencePeriod(models.Model):
+    """Track expected vs actual evidence for frequency-based indicators."""
+    indicator = models.ForeignKey(Indicator, on_delete=models.CASCADE, related_name='evidence_periods')
+    period_start = models.DateField()
+    period_end = models.DateField()
+    expected_evidence_count = models.IntegerField(default=1)
+    actual_evidence_count = models.IntegerField(default=0)
+    is_compliant = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-period_start']
+        unique_together = [['indicator', 'period_start', 'period_end']]
+    
+    def __str__(self):
+        return f"{self.indicator.indicator[:30]} - {self.period_start} to {self.period_end}"
+
+
+class FrequencyLog(models.Model):
+    """Track compliance for recurring indicators by period."""
+    indicator = models.ForeignKey(Indicator, on_delete=models.CASCADE, related_name='frequency_logs')
+    period_start = models.DateField()
+    period_end = models.DateField()
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    submitted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    notes = models.TextField(blank=True)
+    is_compliant = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ['-period_start']
+        unique_together = [['indicator', 'period_start', 'period_end']]
+    
+    def __str__(self):
+        return f"{self.indicator.indicator[:30]} - {self.period_start} to {self.period_end}"
     
     def can_be_completed(self):
         """

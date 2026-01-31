@@ -11,7 +11,7 @@ from django.core.files.base import ContentFile
 from django.http import FileResponse, Http404
 from django.contrib.auth.models import User
 from django.db import models
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -105,6 +105,17 @@ class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
     queryset = Project.objects.all()
     
+    def get_permissions(self):
+        """
+        Instantiate and return the list of permissions that this view requires.
+        """
+        from .permissions import IsAdmin, IsProjectOwnerOrReadOnly
+        if self.action in ['create', 'destroy']:
+            permission_classes = [IsAdmin]
+        else:
+            permission_classes = [IsAuthenticated, IsProjectOwnerOrReadOnly]
+        return [permission() for permission in permission_classes]
+    
     def get_queryset(self):
         """Filter projects to show only user's projects"""
         queryset = Project.objects.prefetch_related(
@@ -145,15 +156,78 @@ class ProjectViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
+        
+        # Audit Log
+        from .audit import log_audit
+        from .models import AuditAction
+        log_audit(
+            actor=request.user,
+            action=AuditAction.CREATE,
+            entity_type='Project',
+            entity_id=serializer.instance.id,
+            summary=f"Created project: {serializer.instance.name}",
+            request=request
+        )
+        
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
-    def partial_update(self, request, *args, **kwargs):
-        """Partially update a project"""
-        instance = self.get_object()
-        serializer = ProjectSerializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='import-indicators')
+    def import_indicators(self, request, pk=None):
+        """Import indicators via CSV"""
+        project = self.get_object()
+        file = request.FILES.get('file')
+        
+        if not file:
+            return Response({'error': 'No file provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        from .csv_import_service import CSVImportService
+        service = CSVImportService(project)
+        result = service.import_csv(file)
+        
+        # Audit Log
+        from .audit import log_audit
+        from .models import AuditAction
+        log_audit(
+            actor=request.user,
+            action=AuditAction.IMPORT,
+            entity_type='Project',
+            entity_id=project.id,
+            summary=f"Imported indicators CSV. Created: {result.indicators_created}, Updated: {result.indicators_updated}",
+            metadata=result.to_dict(),
+            request=request
+        )
+        
+        return Response(result.to_dict())
+
+    @action(detail=True, methods=['get'])
+    def upcoming(self, request, pk=None):
+        """Get upcoming indicators (due soon)"""
+        project = self.get_object()
+        indicators = project.indicators.filter(next_due_date__isnull=False)
+        
+        from . import scheduling_service
+        from datetime import date
+        
+        upcoming_list = []
+        today = date.today()
+        
+        for ind in indicators:
+            days_left = scheduling_service.days_until_due(ind.next_due_date, today)
+            # Include if overdue or due within 30 days
+            if days_left <= 30:
+                data = IndicatorSerializer(ind).data
+                data['days_until_due'] = days_left
+                data['is_overdue'] = days_left < 0
+                upcoming_list.append(data)
+                
+        # Sort by due date (days left)
+        upcoming_list.sort(key=lambda x: x['days_until_due'])
+        
+        return Response(upcoming_list)
 
 
 class IndicatorViewSet(viewsets.ModelViewSet):
@@ -162,6 +236,20 @@ class IndicatorViewSet(viewsets.ModelViewSet):
     queryset = Indicator.objects.prefetch_related('evidence').all()
     serializer_class = IndicatorSerializer
     
+    def perform_create(self, serializer):
+        serializer.save()
+        # Audit Log
+        from .audit import log_audit
+        from .models import AuditAction
+        log_audit(
+            actor=self.request.user,
+            action=AuditAction.CREATE,
+            entity_type='Indicator',
+            entity_id=serializer.instance.id,
+            summary=f"Created indicator: {serializer.instance.indicator[:50]}",
+            request=self.request
+        )
+
     def get_queryset(self):
         """Filter indicators to show only user's project indicators"""
         queryset = super().get_queryset()
@@ -233,8 +321,30 @@ class IndicatorViewSet(viewsets.ModelViewSet):
         
         indicator.status = ComplianceStatus.COMPLIANT
         indicator.last_updated = timezone.now()
+        
+        # Scheduling / Recurrence update
+        if indicator.schedule_type == 'recurring' and indicator.frequency:
+            from . import scheduling_service
+            next_date = scheduling_service.calculate_next_due_date(indicator.frequency)
+            if next_date:
+                indicator.next_due_date = next_date
+                # Also log frequency log logic here if needed (omitted for brevity but recommended)
+        
         indicator.save()
         serializer = self.get_serializer(indicator)
+        
+        # Audit Log
+        from .audit import log_audit
+        from .models import AuditAction
+        log_audit(
+            actor=request.user,
+            action=AuditAction.UPDATE,
+            entity_type='Indicator',
+            entity_id=indicator.id,
+            summary=f"Quick logged indicator as Compliant: {indicator.indicator[:50]}",
+            request=request
+        )
+        
         return Response(serializer.data)
 
 
@@ -345,6 +455,19 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
+        
+        # Audit Log
+        from .audit import log_audit
+        from .models import AuditAction
+        log_audit(
+            actor=request.user,
+            action=AuditAction.CREATE,
+            entity_type='Evidence',
+            entity_id=serializer.instance.id,
+            summary=f"Uploaded evidence: {serializer.instance.file_name or 'Note'}",
+            request=request
+        )
+        
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     def update(self, request, *args, **kwargs):
@@ -366,6 +489,10 @@ class EvidenceViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def review(self, request, pk=None):
         """Review evidence - accept or reject"""
+        # Ensure user is a reviewer or admin
+        if not (request.user.profile.is_reviewer or request.user.profile.is_admin):
+             return Response({'error': 'Only reviewers can perform this action'}, status=status.HTTP_403_FORBIDDEN)
+
         evidence = self.get_object()
         review_action = request.data.get('action')  # 'accept' or 'reject'
         review_reason = request.data.get('reason', '')
@@ -378,6 +505,19 @@ class EvidenceViewSet(viewsets.ModelViewSet):
             evidence.save()
             
             serializer = self.get_serializer(evidence)
+            
+            # Audit Log
+            from .audit import log_audit
+            from .models import AuditAction
+            log_audit(
+                actor=request.user,
+                action=AuditAction.UPDATE,
+                entity_type='Evidence',
+                entity_id=evidence.id,
+                summary=f"Accepted evidence: {evidence.file_name or 'Note'}",
+                request=request
+            )
+            
             return Response(serializer.data)
         
         elif review_action == 'reject':
@@ -393,6 +533,19 @@ class EvidenceViewSet(viewsets.ModelViewSet):
             evidence.save()
             
             serializer = self.get_serializer(evidence)
+            
+            # Audit Log
+            from .audit import log_audit
+            from .models import AuditAction
+            log_audit(
+                actor=request.user,
+                action=AuditAction.UPDATE,
+                entity_type='Evidence',
+                entity_id=evidence.id,
+                summary=f"Rejected evidence: {evidence.file_name or 'Note'} (Reason: {review_reason})",
+                request=request
+            )
+            
             return Response(serializer.data)
         
         else:
@@ -725,7 +878,19 @@ def serve_media(request, file_path):
     except Http404:
         # Re-raise Http404 with generic message
         raise
-    except Exception as e:
         # Log detailed error but return generic message to client
         logger.error(f"Error serving file {file_path}: {str(e)}", exc_info=True)
         raise Http404("File not found")
+
+
+class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """ReadOnly ViewSet for Audit Logs"""
+    from .models import AuditLog
+    from .serializers import AuditLogSerializer
+    
+    queryset = AuditLog.objects.all().order_by('-timestamp')
+    serializer_class = AuditLogSerializer
+    
+    def get_permissions(self):
+        from .permissions import IsAdmin
+        return [IsAdmin()]

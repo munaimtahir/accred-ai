@@ -16,6 +16,28 @@ class IsAdmin(permissions.BasePermission):
         return False
 
 
+class IsContributor(permissions.BasePermission):
+    """Permission to allow contributors."""
+    
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if hasattr(request.user, 'profile'):
+            return request.user.profile.is_contributor or request.user.profile.is_admin
+        return False
+
+
+class IsReviewer(permissions.BasePermission):
+    """Permission to allow reviewers."""
+    
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if hasattr(request.user, 'profile'):
+            return request.user.profile.is_reviewer or request.user.profile.is_admin
+        return False
+
+
 class IsProjectOwner(permissions.BasePermission):
     """Permission to only allow project owners."""
     
@@ -78,7 +100,9 @@ class IsProjectOwnerOrReadOnly(permissions.BasePermission):
         
         # Get project from object
         project = None
-        if hasattr(obj, 'project'):
+        if hasattr(obj, 'members') and hasattr(obj, 'owner'):
+            project = obj
+        elif hasattr(obj, 'project'):
             project = obj.project
         elif hasattr(obj, 'indicator'):
             project = obj.indicator.project

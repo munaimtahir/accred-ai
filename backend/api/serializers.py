@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import Project, Indicator, Evidence, DriveConfig, UserProfile, UserRole
+from .models import Project, Indicator, Evidence, DriveConfig, UserProfile, UserRole, AuditLog
 
 
 def to_camel_case(snake_str):
@@ -221,7 +221,7 @@ class UserSerializer(CamelCaseModelSerializer):
         """Get user role from profile"""
         if hasattr(obj, 'profile'):
             return obj.profile.role
-        return UserRole.MEMBER
+        return UserRole.CONTRIBUTOR
 
 
 class UserRegistrationSerializer(serializers.Serializer):
@@ -232,7 +232,7 @@ class UserRegistrationSerializer(serializers.Serializer):
     password_confirm = serializers.CharField(write_only=True, required=True)
     first_name = serializers.CharField(max_length=30, required=False, allow_blank=True)
     last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
-    role = serializers.ChoiceField(choices=UserRole.choices, default=UserRole.MEMBER, required=False)
+    role = serializers.ChoiceField(choices=UserRole.choices, default=UserRole.CONTRIBUTOR, required=False)
     
     def validate(self, attrs):
         """Validate that passwords match"""
@@ -255,7 +255,7 @@ class UserRegistrationSerializer(serializers.Serializer):
     def create(self, validated_data):
         """Create user and profile"""
         validated_data.pop('password_confirm')
-        role = validated_data.pop('role', UserRole.MEMBER)
+        role = validated_data.pop('role', UserRole.CONTRIBUTOR)
         password = validated_data.pop('password')
         
         user = User.objects.create_user(
@@ -300,3 +300,12 @@ class ChangePasswordSerializer(serializers.Serializer):
         if not user.check_password(value):
             raise serializers.ValidationError("Old password is incorrect.")
         return value
+
+
+class AuditLogSerializer(CamelCaseModelSerializer):
+    """Serializer for Audit Logs"""
+    actor_name = serializers.CharField(source='actor.username', read_only=True)
+    
+    class Meta:
+        model = AuditLog
+        fields = '__all__'

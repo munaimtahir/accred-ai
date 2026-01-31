@@ -46,6 +46,7 @@ pytest-cov==6.0.0
 pytest-mock==3.14.0
 sentry-sdk[django]==2.19.0
 drf-spectacular==0.29.0
+python-dateutil
 
 python-json-logger>=3.3.0
 whitenoise==6.8.2
