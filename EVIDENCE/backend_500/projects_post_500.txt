@@ -1,0 +1,20 @@
+HTTP/2 201 
+allow: GET, POST, HEAD, OPTIONS
+alt-svc: h3=":443"; ma=2592000
+content-type: application/json
+cross-origin-opener-policy: same-origin
+date: Sun, 01 Feb 2026 01:43:15 GMT
+referrer-policy: same-origin
+referrer-policy: strict-origin-when-cross-origin
+server: nginx/1.29.4
+vary: origin
+via: 1.1 Caddy
+x-content-type-options: nosniff
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-frame-options: SAMEORIGIN
+x-request-id: 794c9802
+x-xss-protection: 1; mode=block
+content-length: 181
+
+{"id":"dec43ec0-a7a5-4e8c-9cc5-3c7363a15d0d","name":"Triage Project","description":"backend 500 triage","createdAt":"2026-02-01T01:43:15.757677Z","indicators":[],"driveConfig":null}

@@ -1,0 +1,20 @@
+HTTP/2 201 
+allow: GET, POST, HEAD, OPTIONS
+alt-svc: h3=":443"; ma=2592000
+content-type: application/json
+cross-origin-opener-policy: same-origin
+date: Sun, 01 Feb 2026 01:45:16 GMT
+referrer-policy: same-origin
+referrer-policy: strict-origin-when-cross-origin
+server: nginx/1.29.4
+vary: origin
+via: 1.1 Caddy
+x-content-type-options: nosniff
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-frame-options: SAMEORIGIN
+x-request-id: f82291f6
+x-xss-protection: 1; mode=block
+content-length: 210
+
+{"id":"a181c11d-0144-4335-aab2-d15e718996ff","name":"Final Verification Project","description":"POST returns 201 - verified working","createdAt":"2026-02-01T01:45:16.245532Z","indicators":[],"driveConfig":null}
